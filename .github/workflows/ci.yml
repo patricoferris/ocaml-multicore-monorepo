@@ -14,7 +14,6 @@ jobs:
       run:
         working-directory: /home/opam
     steps:
-    steps:
     - run: mkdir -p /home/opam/package
     - name: Cloning
       run: git clone https://${{ secrets.GithubToken }}@github.com/$GITHUB_REPOSITORY . && git checkout ${{ github.event.pull_request.head.sha }}
