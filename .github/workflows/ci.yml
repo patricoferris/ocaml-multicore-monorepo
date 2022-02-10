@@ -14,12 +14,9 @@ jobs:
       run:
         working-directory: /home/opam
     steps:
-    - run: mkdir -p /home/opam/package
     - name: ~~~ Checkout code ~~~
       uses: actions/checkout@v2
-      working-directory: /home/opam/package
     - name: ~~~ Install Dune ~~~
       run: opam install dune.2.9.2
-      working-directory: /home/opam/package
     - name: ~~~ Build the duniverse (or at least parts of it) ~~~
       run: opam exec -- dune runtest
