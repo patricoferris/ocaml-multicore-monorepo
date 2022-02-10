@@ -22,6 +22,7 @@ open Eio.Private.Effect
 open Eio.Private.Effect.Deep
 
 module Fibre_context = Eio.Private.Fibre_context
+module Ctf = Eio.Private.Ctf
 
 module Suspended = Eio_utils.Suspended
 module Zzz = Eio_utils.Zzz
@@ -47,7 +48,7 @@ module FD = struct
   type t = {
     seekable : bool;
     close_unix : bool;                          (* Whether closing this also closes the underlying FD. *)
-    mutable release_hook : Eio.Hook.t;          (* Use this on close to remove switch's [on_release] hook. *)
+    mutable release_hook : Eio.Switch.hook;     (* Use this on close to remove switch's [on_release] hook. *)
     mutable fd : [`Open of Unix.file_descr | `Closed]
   }
 
@@ -63,7 +64,7 @@ module FD = struct
     Ctf.label "close";
     let fd = get "close" t in
     t.fd <- `Closed;
-    Eio.Hook.remove t.release_hook;
+    Eio.Switch.remove_hook t.release_hook;
     if t.close_unix then (
       let res = perform (Close fd) in
       Log.debug (fun l -> l "close: woken up");
@@ -85,11 +86,11 @@ module FD = struct
     | `Peek -> fd
     | `Take ->
       t.fd <- `Closed;
-      Eio.Hook.remove t.release_hook;
+      Eio.Switch.remove_hook t.release_hook;
       fd
 
   let of_unix_no_hook ~seekable ~close_unix fd =
-    { seekable; close_unix; fd = `Open fd; release_hook = Eio.Hook.null }
+    { seekable; close_unix; fd = `Open fd; release_hook = Eio.Switch.null_hook }
 
   let of_unix ~sw ~seekable ~close_unix fd =
     let t = of_unix_no_hook ~seekable ~close_unix fd in
@@ -97,7 +98,7 @@ module FD = struct
     t
 
   let placeholder ~seekable ~close_unix =
-    { seekable; close_unix; fd = `Closed; release_hook = Eio.Hook.null }
+    { seekable; close_unix; fd = `Closed; release_hook = Eio.Switch.null_hook }
 
   let uring_file_offset t =
     if t.seekable then Optint.Int63.minus_one else Optint.Int63.zero
@@ -770,7 +771,7 @@ let flow fd =
 
     method probe : type a. a Eio.Generic.ty -> a option = function
       | FD -> Some fd
-      | Eio_unix.Unix_file_descr op -> Some (FD.to_unix op fd)
+      | Eio_unix.Private.Unix_file_descr op -> Some (FD.to_unix op fd)
       | _ -> None
 
     method read_into buf =
@@ -783,7 +784,7 @@ let flow fd =
 
     method read_methods = []
 
-    method write src =
+    method copy src =
       match get_fd_opt src with
       | Some src -> fast_copy_try_splice src fd
       | None ->
@@ -808,7 +809,7 @@ let listening_socket fd = object
   inherit Eio.Net.listening_socket
 
   method! probe : type a. a Eio.Generic.ty -> a option = function
-    | Eio_unix.Unix_file_descr op -> Some (FD.to_unix op fd)
+    | Eio_unix.Private.Unix_file_descr op -> Some (FD.to_unix op fd)
     | _ -> None
 
   method close = FD.close fd
@@ -969,7 +970,6 @@ end
 
 let secure_random = object
   inherit Eio.Flow.source
-  method read_methods = []
   method read_into buf = Low_level.getrandom buf
 end
 
@@ -1106,7 +1106,7 @@ let rec run ?(queue_depth=64) ?(block_size=4096) ?polling_timeout main =
                 )
             )
           | Eio.Private.Effects.Trace -> Some (fun k -> continue k Eio_utils.Trace.default_traceln)
-          | Eio_unix.Effects.Await_readable fd -> Some (fun k ->
+          | Eio_unix.Private.Await_readable fd -> Some (fun k ->
               match Fibre_context.get_error fibre with
               | Some e -> discontinue k e
               | None ->
@@ -1117,7 +1117,7 @@ let rec run ?(queue_depth=64) ?(block_size=4096) ?polling_timeout main =
                   );
                 schedule st
             )
-          | Eio_unix.Effects.Await_writable fd -> Some (fun k ->
+          | Eio_unix.Private.Await_writable fd -> Some (fun k ->
               match Fibre_context.get_error fibre with
               | Some e -> discontinue k e
               | None ->

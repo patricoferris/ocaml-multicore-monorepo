@@ -114,8 +114,6 @@ let as_flow t =
   object
     inherit Flow.source
 
-    method read_methods = []
-
     method read_into dst =
       ensure t 1;
       let len = min (buffered_bytes t) (Cstruct.length dst) in
@@ -280,11 +278,25 @@ let parse ?initial_size ~max_size p flow =
   let buf = of_flow flow ?initial_size ~max_size in
   format_errors (p <* end_of_input) buf
 
+let parse_exn ?initial_size ~max_size p flow =
+  match parse ?initial_size ~max_size p flow with
+  | Ok x -> x
+  | Error (`Msg m) -> failwith m
+
+[@@inline never]
+let bad_offset ~expected actual =
+  Fmt.invalid_arg "Sequence is stale (expected to be used at offset %d, but stream is now at %d)"
+    expected actual
+
 let seq ?(stop=at_end_of_input) p t =
-  let rec aux () =
+  let rec aux offset () =
+    if offset <> t.consumed then bad_offset ~expected:offset t.consumed;
     if stop t then Seq.Nil
-    else Seq.Cons (p t, aux)
+    else (
+      let item = p t in
+      Seq.Cons (item, aux t.consumed)
+    )
   in
-  aux
+  aux t.consumed
 
 let lines t = seq line t

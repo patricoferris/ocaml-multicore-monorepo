@@ -91,10 +91,10 @@ module Ipaddr = struct
 
   type v4v6 = [`V4 | `V6] t
 
-  let classify t =
+  let fold ~v4 ~v6 t =
     match String.length t with
-    | 4 -> `V4 t
-    | 16 -> `V6 t
+    | 4 -> v4 t
+    | 16 -> v6 t
     | _ -> assert false
 
   let of_raw t =
@@ -102,42 +102,31 @@ module Ipaddr = struct
     | 4 | 16 -> t
     | x -> Fmt.invalid_arg "An IP address must be either 4 or 16 bytes long (%S is %d bytes)" t x
 
-  let pp f t =
-    match classify t with
-    | `V4 t -> V4.pp f t
-    | `V6 t -> V6.pp f t
+  let pp f = fold ~v4:(V4.pp f) ~v6:(V6.pp f)
 
-  let pp_for_uri f t =
-    match classify t with
-    | `V4 t -> V4.pp f t
-    | `V6 t -> Fmt.pf f "[%a]" V6.pp t
+  let pp_for_uri f =
+    fold
+      ~v4:(V4.pp f)
+      ~v6:(Fmt.pf f "[%a]" V6.pp)
 end
 
 module Sockaddr = struct
-  type stream = [
+  type t = [
     | `Unix of string
     | `Tcp of Ipaddr.v4v6 * int
   ]
-
-  type datagram = [
-    | `Udp of Ipaddr.v4v6 * int
-  ]
-
-  type t = [ stream | datagram ]
 
   let pp f = function
     | `Unix path ->
       Format.fprintf f "unix:%s" path
     | `Tcp (addr, port) ->
       Format.fprintf f "tcp:%a:%d" Ipaddr.pp_for_uri addr port
-    | `Udp (addr, port) ->
-      Format.fprintf f "udp:%a:%d" Ipaddr.pp_for_uri addr port
 end
 
 class virtual listening_socket = object (_ : #Generic.t)
   method probe _ = None
   method virtual close : unit
-  method virtual accept : sw:Switch.t -> <Flow.two_way; Flow.close> * Sockaddr.stream
+  method virtual accept : sw:Switch.t -> <Flow.two_way; Flow.close> * Sockaddr.t
 end
 
 let accept ~sw (t : #listening_socket) = t#accept ~sw
@@ -147,21 +136,10 @@ let accept_sub ~sw (t : #listening_socket) ~on_error handle =
   let handle sw (flow, addr) = handle ~sw flow addr in
   Fibre.fork_on_accept ~sw accept handle ~on_handler_error:on_error
 
-class virtual endpoint = object
-  method virtual send : Sockaddr.datagram -> Cstruct.t -> unit
-  method virtual recv : Cstruct.t -> (Ipaddr.v4v6 * int) option * int
-end
-
-let send (t:#endpoint) = t#send
-let recv (t:#endpoint) = t#recv
-
 class virtual t = object
-  method virtual listen : reuse_addr:bool -> reuse_port:bool -> backlog:int -> sw:Switch.t -> Sockaddr.stream -> listening_socket
-  method virtual connect : sw:Switch.t -> Sockaddr.stream -> <Flow.two_way; Flow.close>
-  method virtual endpoint : sw:Switch.t -> Sockaddr.datagram -> endpoint
+  method virtual listen : reuse_addr:bool -> reuse_port:bool -> backlog:int -> sw:Switch.t -> Sockaddr.t -> listening_socket
+  method virtual connect : sw:Switch.t -> Sockaddr.t -> <Flow.two_way; Flow.close>
 end
 
 let listen ?(reuse_addr=false) ?(reuse_port=false) ~backlog ~sw (t:#t) = t#listen ~reuse_addr ~reuse_port ~backlog ~sw
 let connect ~sw (t:#t) = t#connect ~sw
-
-let endpoint ~sw (t:#t) = t#endpoint ~sw

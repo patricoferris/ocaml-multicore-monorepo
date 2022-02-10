@@ -1,6 +1,5 @@
 open Effect
 
-module Hook = Hook
 module Cancel = Cancel
 
 module Private = struct
@@ -16,6 +15,7 @@ module Private = struct
   end
 
   module Effect = Effect
+  module Ctf = Ctf
 end
 
 let traceln ?__POS__ fmt =
