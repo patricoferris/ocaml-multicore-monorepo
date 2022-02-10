@@ -1,5 +1,9 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 jobs:
   debian_500_trunk:
     runs-on: ubuntu-latest
@@ -20,7 +24,7 @@ jobs:
       working-directory: /home/opam/package
       if: ${{ github.event_name == 'pull_request' }}
     - name: ~~~ Cloning ~~~
-      run: git clone https://${{ secrets.GithubToken }}github.com/$GITHUB_REPOSITORY .
+      run: git clone https://${{ secrets.GithubToken }}@github.com/$GITHUB_REPOSITORY .
       working-directory: /home/opam/package
       if: ${{ github.event_name == 'push' }}
     - name: ~~~ Install dune ~~~
