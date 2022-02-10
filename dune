@@ -1,0 +1,4 @@
+(mdx 
+ (packages eio_main)
+ (preludes docs/prelude.ml)
+ (files README.md))

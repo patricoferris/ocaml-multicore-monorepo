@@ -1,0 +1,64 @@
+opam-version: "2.0"
+synopsis: "A Multicore OCaml Monorepo"
+maintainer: ["patrick@sirref.org"]
+authors: ["patrick@sirref.org"]
+homepage: "https://github.com/patricoferris/ocaml-multicore-monorepo"
+bug-reports: "https://github.com/patricoferris/ocaml-multicore-monorepo/issues"
+depends: [
+  "ocaml-variants" {= "5.00.0+trunk" }
+  "dune" {>= "2.9.2"}
+  "eio_main"
+  "lwt_eio"
+  "domainslib"
+  "mdx"
+  "base"
+#   Need to port menhir 5.00 changes to the duniverse
+#   "notty"
+  "js_of_ocaml-compiler"
+  "js_of_ocaml-lwt"
+  "js_of_ocaml-ppx"
+  "js_of_ocaml"
+  "ctypes"
+  "bisect_ppx"
+  "fmt" {= "0.8.10+dune"}
+]
+build: [
+  ["dune" "subst"] {pinned}
+  [
+    "dune"
+    "build"
+    "-p"
+    name
+    "-j"
+    jobs
+    "@install"
+    "@runtest" {with-test}
+    "@doc" {with-doc}
+  ]
+]
+dev-repo: "git+https://github.com/patricoferris/ocaml-multicore-monorepo.git"
+pin-depends: [
+    "findlib.dev" "git+https://github.com/patricoferris/lib-findlib#0366110a80af77d931d31e5b1a9469714403957e"
+    "ocamlfind.dev" "git+https://github.com/patricoferris/lib-findlib#0366110a80af77d931d31e5b1a9469714403957e"
+    "sexplib0.dev" "git+https://github.com/janestreet/sexplib0#f13a9b23e7f0a68d9e5d81af30c35cbd419f8b25"
+    "sexplib" "git+https://github.com/patricoferris/sexplib#adb4e459693303d7236fda33307ee8c5c82a300b"
+    "notty.dev" "git+https://github.com/patricoferris/notty#30ceb680991557fd1d190dfbd733145220cc165d"
+    "lwt.dev" "git+https://github.com/ocsigen/lwt#eb4874857e871346a5f1854591d731699bbdc749"
+    "base.dev" "git+https://github.com/kit-ty-kate/base#a3cf0042e943c9c979ff7424912c71c6236f68f3"
+    "ppxlib.dev" "git+https://github.com/pitag-ha/ppxlib#31621eedacfa412ad59572d0d09a4d1b86553b3a"
+    "easy-format.dev" "git+https://github.com/nojb/easy-format#4568bfa1887146ab6ce41a48c9e00c8c1329c6e4"
+    "menhir.dev" "git+https://gitlab.inria.fr/fpottier/menhir#cea506b862ddc34fb6a25b60ae145b755a0db737"
+    "menhirLib.dev" "git+https://gitlab.inria.fr/fpottier/menhir#cea506b862ddc34fb6a25b60ae145b755a0db737"
+    "menhirSdk.dev" "git+https://gitlab.inria.fr/fpottier/menhir#cea506b862ddc34fb6a25b60ae145b755a0db737"
+    "bisect_ppx.dev" "git+https://github.com/patricoferris/bisect_ppx#8b82cf6c671da75fce9801bb7f8606ad89443d32"
+    "fmt.0.8.10+dune" "git+https://github.com/patricoferris/fmt#55e284338acb17c33653b89a5dcf55ed9c273216"
+    # Luv doesn't like to be vendored it would seem :/
+    "luv.dev" "git+https://github.com/patricoferris/luv#df19e79c935fb5d2ec205e097c8843fedd8712fb"
+    # Note these jsoo packages do not support effects, just compiling under a 5.00.0+trunk branch!
+    "js_of_ocaml-compiler.dev" "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
+    "js_of_ocaml-lwt.dev" "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
+    "js_of_ocaml-ppx.dev" "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
+    "js_of_ocaml.dev" "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
+    # For monorepo-ing -- bigarray-compat
+    "opam-core.2.1.0" "git+https://github.com/patricoferris/opam#4534c7083e6f6cbe80ac5792b7c3931363b5454b"
+]

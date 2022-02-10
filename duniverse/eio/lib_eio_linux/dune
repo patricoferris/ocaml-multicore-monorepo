@@ -1,0 +1,8 @@
+(library
+ (name eio_linux)
+ (public_name eio_linux)
+ (enabled_if (= %{system} "linux"))
+ (foreign_stubs
+  (language c)
+  (names eio_stubs))
+ (libraries eio eio.utils eio.unix uring logs fmt ctf))

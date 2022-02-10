@@ -1,0 +1,33 @@
+let run_exn_defaults =
+  let open Mdx_test in
+  let packages =
+    Package.[
+      unix;
+      findlib_top;
+      findlib_internal;
+      compilerlibs_toplevel;
+    ]
+  in
+  let predicates = Predicate.[ byte; toploop ] in
+  let non_deterministic =
+    match Sys.getenv_opt "MDX_RUN_NON_DETERMINISTIC" with
+    | Some _ -> true
+    | None -> false
+  in
+  run_exn ~packages ~predicates ~prelude_str:[]
+    ~non_deterministic
+    ~silent_eval:false ~record_backtrace:false
+    ~syntax:None ~silent:false
+    ~verbose_findlib:false ~section:None
+    ~root:None ~force_output:false
+    ~output:(Some `Stdout)
+let file = Sys.argv.(1)
+let prelude = ["prelude.ml";"prelude2.ml"]
+
+let directives = List.map (fun path ->
+  Mdx_top.Directory path) []
+
+let _ = run_exn_defaults
+  ~file
+  ~prelude
+  ~directives

@@ -1,0 +1,15 @@
+; String.uppercase_ascii was added in 4.03 -- lwt supports down to 4.02
+(rule
+  (enabled_if (>= %{ocaml_version} "4.03"))
+  (action
+    (with-stdout-to ./string_compat.ml (echo "let uppercase = String.uppercase_ascii"))))
+
+(rule
+  (enabled_if (< %{ocaml_version} "4.03"))
+  (action
+    (with-stdout-to ./string_compat.ml (echo "let uppercase = String.uppercase"))))
+
+(executable
+ (name discover)
+ (modules discover string_compat)
+ (libraries dune.configurator))

@@ -1,0 +1,539 @@
+opam-version: "2.0"
+synopsis: "opam-monorepo generated lockfile"
+maintainer: "opam-monorepo"
+depends: [
+  "astring" {= "0.8.5+dune" & vendor}
+  "base" {= "v0.14.0" & vendor}
+  "base-bigarray" {= "base"}
+  "base-bytes" {= "base"}
+  "base-domains" {= "base"}
+  "base-nnp" {= "base"}
+  "base-threads" {= "base"}
+  "base-unix" {= "base"}
+  "bigarray-compat" {= "1.1.0" & vendor}
+  "biniou" {= "1.2.1" & vendor}
+  "bisect_ppx" {= "2.7.1" & vendor}
+  "camlp-streams" {= "5.0" & vendor}
+  "cmdliner" {= "1.0.4+dune" & vendor}
+  "cppo" {= "1.6.8" & vendor}
+  "csexp" {= "1.5.1" & vendor}
+  "cstruct" {= "6.0.1" & vendor}
+  "ctf" {= "~dev" & vendor}
+  "ctypes" {= "0.17.1+dune" & vendor}
+  "domainslib" {= "0.4.0" & vendor}
+  "dune" {= "2.9.3"}
+  "dune-configurator" {= "2.9.3" & vendor}
+  "easy-format" {= "1.3.2" & vendor}
+  "eio" {= "~dev" & vendor}
+  "eio_luv" {= "~dev" & vendor}
+  "eio_main" {= "~dev" & vendor}
+  "findlib" {= "1.8.1+dune" & vendor}
+  "fmt" {= "0.8.10+dune" & vendor}
+  "integers" {= "0.5.1" & vendor}
+  "js_of_ocaml" {= "4.0.0" & vendor}
+  "js_of_ocaml-compiler" {= "4.0.0" & vendor}
+  "js_of_ocaml-lwt" {= "4.0.0" & vendor}
+  "js_of_ocaml-ppx" {= "4.0.0" & vendor}
+  "logs" {= "0.7.0+dune" & vendor}
+  "luv" {= "0.5.11" & vendor}
+  "luv_unix" {= "0.5.0" & vendor}
+  "lwt" {= "5.5.0" & vendor}
+  "lwt-dllist" {= "1.0.1" & vendor}
+  "lwt_eio" {= "0.1" & vendor}
+  "mdx" {= "2.1.0" & vendor}
+  "menhir" {= "20211012" & vendor}
+  "menhirLib" {= "20211012" & vendor}
+  "menhirSdk" {= "20211012" & vendor}
+  "mmap" {= "1.1.0" & vendor}
+  "mtime" {= "1.2.0+dune" & vendor}
+  "ocaml" {= "5.00.0"}
+  "ocaml-compiler-libs" {= "v0.12.4" & vendor}
+  "ocaml-config" {= "2"}
+  "ocaml-variants" {= "5.00.0+trunk"}
+  "ocaml-version" {= "3.4.0" & vendor}
+  "ocamlfind" {= "1.8.0.git" & vendor}
+  "ocplib-endian" {= "1.2" & vendor}
+  "odoc-parser" {= "1.0.0" & vendor}
+  "optint" {= "0.1.0" & vendor}
+  "ppx_derivers" {= "1.2.1" & vendor}
+  "ppxlib" {= "0.25.0~5.00preview" & vendor}
+  "psq" {= "0.2.0" & vendor}
+  "re" {= "1.10.3" & vendor}
+  "result" {= "1.5" & vendor}
+  "seq" {= "base+dune" & vendor}
+  "sexplib0" {= "v0.14.0" & vendor}
+  "stdlib-shims" {= "0.3.0" & vendor}
+  "uchar" {= "0.0.2+dune" & vendor}
+  "yojson" {= "1.7.0" & vendor}
+]
+pin-depends: [
+  [
+    "astring.0.8.5+dune"
+    "https://github.com/dune-universe/astring/archive/v0.8.5+dune.tar.gz"
+  ]
+  [
+    "base.v0.14.0"
+    "git+https://github.com/kit-ty-kate/base#a3cf0042e943c9c979ff7424912c71c6236f68f3"
+  ]
+  [
+    "bigarray-compat.1.1.0"
+    "https://github.com/mirage/bigarray-compat/releases/download/v1.1.0/bigarray-compat-1.1.0.tbz"
+  ]
+  [
+    "biniou.1.2.1"
+    "git+https://github.com/patricoferris/biniou#61a33539e3d4f1915b43aa376819cefae09b08d3"
+  ]
+  [
+    "bisect_ppx.2.7.1"
+    "git+https://github.com/patricoferris/bisect_ppx#8b82cf6c671da75fce9801bb7f8606ad89443d32"
+  ]
+  [
+    "camlp-streams.5.0"
+    "https://github.com/ocaml/camlp-streams/archive/refs/tags/v5.0.tar.gz"
+  ]
+  [
+    "cmdliner.1.0.4+dune"
+    "https://github.com/dune-universe/cmdliner/archive/v1.0.4+dune.tar.gz"
+  ]
+  [
+    "cppo.1.6.8"
+    "https://github.com/ocaml-community/cppo/archive/v1.6.8.tar.gz"
+  ]
+  [
+    "csexp.1.5.1"
+    "https://github.com/ocaml-dune/csexp/releases/download/1.5.1/csexp-1.5.1.tbz"
+  ]
+  [
+    "cstruct.6.0.1"
+    "https://github.com/mirage/ocaml-cstruct/releases/download/v6.0.1/cstruct-v6.0.1.tbz"
+  ]
+  [
+    "ctf.~dev"
+    "git+file:///Users/patrickferris/Documents/ocamllabs/effects/eio#7f182a5e80c9466b32e366596977d6d08faaacfd"
+  ]
+  [
+    "ctypes.0.17.1+dune"
+    "git+https://github.com/avsm/ocaml-ctypes.git#84711d6a7ed6ccec6e6f1b80f71580a2c289709c"
+  ]
+  [
+    "domainslib.0.4.0"
+    "git+https://github.com/ocaml-multicore/domainslib.git#20d9f741fe89cacfd91d28dcd9fd21c1d9ccea3e"
+  ]
+  [
+    "dune-configurator.2.9.3"
+    "https://github.com/ocaml/dune/releases/download/2.9.3/dune-site-2.9.3.tbz"
+  ]
+  [
+    "easy-format.1.3.2"
+    "git+https://github.com/ocaml-community/easy-format#4568bfa1887146ab6ce41a48c9e00c8c1329c6e4"
+  ]
+  [
+    "eio.~dev"
+    "git+file:///Users/patrickferris/Documents/ocamllabs/effects/eio#7f182a5e80c9466b32e366596977d6d08faaacfd"
+  ]
+  [
+    "eio_luv.~dev"
+    "git+file:///Users/patrickferris/Documents/ocamllabs/effects/eio#7f182a5e80c9466b32e366596977d6d08faaacfd"
+  ]
+  [
+    "eio_main.~dev"
+    "git+file:///Users/patrickferris/Documents/ocamllabs/effects/eio#7f182a5e80c9466b32e366596977d6d08faaacfd"
+  ]
+  [
+    "findlib.1.8.1+dune"
+    "git+https://github.com/patricoferris/lib-findlib#0366110a80af77d931d31e5b1a9469714403957e"
+  ]
+  [
+    "fmt.0.8.10+dune"
+    "git+https://github.com/patricoferris/fmt#55e284338acb17c33653b89a5dcf55ed9c273216"
+  ]
+  [
+    "integers.0.5.1"
+    "git+https://github.com/kit-ty-kate/ocaml-integers#eee055757d81a40be11f2d1b60846d595023e4a1"
+  ]
+  [
+    "js_of_ocaml.4.0.0"
+    "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
+  ]
+  [
+    "js_of_ocaml-compiler.4.0.0"
+    "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
+  ]
+  [
+    "js_of_ocaml-lwt.4.0.0"
+    "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
+  ]
+  [
+    "js_of_ocaml-ppx.4.0.0"
+    "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
+  ]
+  [
+    "logs.0.7.0+dune"
+    "https://github.com/dune-universe/logs/archive/v0.7.0+dune.tar.gz"
+  ]
+  [
+    "luv.0.5.11"
+    "git+https://github.com/patricoferris/luv#df19e79c935fb5d2ec205e097c8843fedd8712fb"
+  ]
+  [
+    "luv_unix.0.5.0"
+    "git+https://github.com/patricoferris/luv#df19e79c935fb5d2ec205e097c8843fedd8712fb"
+  ]
+  [
+    "lwt.5.5.0"
+    "git+https://github.com/patricoferris/lwt#120cdba460d22369b0307e560a10da2977d519bb"
+  ]
+  [
+    "lwt-dllist.1.0.1"
+    "https://github.com/mirage/lwt-dllist/releases/download/v1.0.1/lwt-dllist-v1.0.1.tbz"
+  ]
+  [
+    "lwt_eio.0.1"
+    "https://github.com/talex5/lwt_eio/releases/download/v0.1/lwt_eio-0.1.tbz"
+  ]
+  [
+    "mdx.2.1.0"
+    "https://github.com/realworldocaml/mdx/releases/download/2.1.0/mdx-2.1.0.tbz"
+  ]
+  [
+    "menhir.20211012"
+    "https://gitlab.inria.fr/fpottier/menhir/-/archive/20211012/archive.tar.gz"
+  ]
+  [
+    "menhirLib.20211012"
+    "https://gitlab.inria.fr/fpottier/menhir/-/archive/20211012/archive.tar.gz"
+  ]
+  [
+    "menhirSdk.20211012"
+    "https://gitlab.inria.fr/fpottier/menhir/-/archive/20211012/archive.tar.gz"
+  ]
+  [
+    "mmap.1.1.0"
+    "https://github.com/mirage/mmap/releases/download/v1.1.0/mmap-v1.1.0.tbz"
+  ]
+  [
+    "mtime.1.2.0+dune"
+    "https://github.com/dune-universe/mtime/archive/v1.2.0+dune.tar.gz"
+  ]
+  [
+    "ocaml-compiler-libs.v0.12.4"
+    "https://github.com/janestreet/ocaml-compiler-libs/releases/download/v0.12.4/ocaml-compiler-libs-v0.12.4.tbz"
+  ]
+  [
+    "ocaml-version.3.4.0"
+    "https://github.com/ocurrent/ocaml-version/releases/download/v3.4.0/ocaml-version-v3.4.0.tbz"
+  ]
+  [
+    "ocamlfind.1.8.0.git"
+    "git+https://github.com/patricoferris/lib-findlib#0366110a80af77d931d31e5b1a9469714403957e"
+  ]
+  [
+    "ocplib-endian.1.2"
+    "git+https://github.com/patricoferris/ocplib-endian#43e8c64548a2da55035f9968e91f3238835cc126"
+  ]
+  [
+    "odoc-parser.1.0.0"
+    "git+https://github.com/patricoferris/odoc-parser#969e80cd796fd36940fffa97545a97aa5b82d03f"
+  ]
+  [
+    "optint.0.1.0"
+    "https://github.com/mirage/optint/releases/download/v0.1.0/optint-v0.1.0.tbz"
+  ]
+  [
+    "ppx_derivers.1.2.1"
+    "https://github.com/ocaml-ppx/ppx_derivers/archive/1.2.1.tar.gz"
+  ]
+  [
+    "ppxlib.0.25.0~5.00preview"
+    "git+https://github.com/pitag-ha/ppxlib#31621eedacfa412ad59572d0d09a4d1b86553b3a"
+  ]
+  [
+    "psq.0.2.0"
+    "https://github.com/pqwy/psq/releases/download/v0.2.0/psq-v0.2.0.tbz"
+  ]
+  [
+    "re.1.10.3"
+    "https://github.com/ocaml/ocaml-re/releases/download/1.10.3/re-1.10.3.tbz"
+  ]
+  [
+    "result.1.5"
+    "https://github.com/janestreet/result/releases/download/1.5/result-1.5.tbz"
+  ]
+  ["seq.base+dune" "https://github.com/c-cube/seq/archive/0.2.2.tar.gz"]
+  [
+    "sexplib0.v0.14.0"
+    "git+https://github.com/janestreet/sexplib0#f13a9b23e7f0a68d9e5d81af30c35cbd419f8b25"
+  ]
+  [
+    "stdlib-shims.0.3.0"
+    "https://github.com/ocaml/stdlib-shims/releases/download/0.3.0/stdlib-shims-0.3.0.tbz"
+  ]
+  [
+    "uchar.0.0.2+dune"
+    "https://github.com/dune-universe/uchar/archive/v0.0.2+dune.tar.gz"
+  ]
+  [
+    "yojson.1.7.0"
+    "https://github.com/ocaml-community/yojson/releases/download/1.7.0/yojson-1.7.0.tbz"
+  ]
+]
+x-opam-monorepo-duniverse-dirs: [
+  [
+    "git+file:///Users/patrickferris/Documents/ocamllabs/effects/eio#7f182a5e80c9466b32e366596977d6d08faaacfd"
+    "eio"
+  ]
+  [
+    "git+https://github.com/avsm/ocaml-ctypes.git#84711d6a7ed6ccec6e6f1b80f71580a2c289709c"
+    "ocaml-ctypes"
+  ]
+  [
+    "https://github.com/c-cube/seq/archive/0.2.2.tar.gz"
+    "seq"
+    [
+      "md5=9033e02283aa3bde9f97f24e632902e3"
+      "sha512=cab0eb4cb6d9788b7cbd7acbefefc15689d706c97ff7f75dd97faf3c21e466af4d0ff110541a24729db587e7172b1a30a3c2967e17ec2e49cbd923360052c07c"
+    ]
+  ]
+  [
+    "https://github.com/dune-universe/astring/archive/v0.8.5+dune.tar.gz"
+    "astring"
+    [
+      "sha256=11327c202fd0115f3a2bf7710c9c603b979a32ba9b16c1a64ba155857233acc8"
+    ]
+  ]
+  [
+    "https://github.com/dune-universe/cmdliner/archive/v1.0.4+dune.tar.gz"
+    "cmdliner"
+    [
+      "sha256=ffc09f07a9e394d6be4dbecea7add601ff00519a91dff4c95b9cd0a4aa60eceb"
+    ]
+  ]
+  [
+    "https://github.com/dune-universe/logs/archive/v0.7.0+dune.tar.gz"
+    "logs"
+    [
+      "sha256=06ab994e5fc195f9b655544bffdc7d6aecec8f0f9b285e46f5668ec78030d13c"
+    ]
+  ]
+  [
+    "https://github.com/dune-universe/mtime/archive/v1.2.0+dune.tar.gz"
+    "mtime"
+    [
+      "sha256=92435c47ba03ddbe18793383551e306bcaaecc7191db901dc34707b5c4b4eaf0"
+    ]
+  ]
+  [
+    "https://github.com/dune-universe/uchar/archive/v0.0.2+dune.tar.gz"
+    "uchar"
+    [
+      "sha256=ddd2dac470c4aa8e8d6163a2fceb82c4a7725693a0d92c5f4834bd4258e659dc"
+    ]
+  ]
+  [
+    "https://github.com/janestreet/ocaml-compiler-libs/releases/download/v0.12.4/ocaml-compiler-libs-v0.12.4.tbz"
+    "ocaml-compiler-libs"
+    [
+      "sha256=4ec9c9ec35cc45c18c7a143761154ef1d7663036a29297f80381f47981a07760"
+      "sha512=978dba8dfa61f98fa24fda7a9c26c2e837081f37d1685fe636dc19cfc3278a940cf01a10293504b185c406706bc1008bc54313d50f023bcdea6d5ac6c0788b35"
+    ]
+  ]
+  [
+    "https://github.com/janestreet/result/releases/download/1.5/result-1.5.tbz"
+    "result"
+    ["md5=1b82dec78849680b49ae9a8a365b831b"]
+  ]
+  [
+    "git+https://github.com/janestreet/sexplib0#f13a9b23e7f0a68d9e5d81af30c35cbd419f8b25"
+    "sexplib0"
+  ]
+  [
+    "git+https://github.com/kit-ty-kate/base#a3cf0042e943c9c979ff7424912c71c6236f68f3"
+    "base"
+  ]
+  [
+    "git+https://github.com/kit-ty-kate/ocaml-integers#eee055757d81a40be11f2d1b60846d595023e4a1"
+    "ocaml-integers"
+  ]
+  [
+    "https://github.com/mirage/bigarray-compat/releases/download/v1.1.0/bigarray-compat-1.1.0.tbz"
+    "bigarray-compat"
+    [
+      "sha256=434469a48d5c84e80d621b13d95eb067f8138c1650a1fd5ae6009a19b93718d5"
+      "sha512=7be283fd957ee168ce1e62835d22114da405e4b7da9619b4f2030a832d45ca210a0c8f1d1c57c92e224f3512308a8a0f0923b94f44b6f582acbe0e7728d179d4"
+    ]
+  ]
+  [
+    "https://github.com/mirage/lwt-dllist/releases/download/v1.0.1/lwt-dllist-v1.0.1.tbz"
+    "lwt-dllist"
+    [
+      "sha256=e86ce75e40f00d51514cf8b2e71e5184c4cb5dae96136be24613406cfc0dba6e"
+      "sha512=1df7e8e12e01a5d32e1db746f922e05f23a67c0d20e72a5b9126fead1e04decdb062081574b1c410c822305ef4eac990b7dd69f36673db8f50b9db2152abad80"
+    ]
+  ]
+  [
+    "https://github.com/mirage/mmap/releases/download/v1.1.0/mmap-v1.1.0.tbz"
+    "mmap"
+    ["md5=8c5d5fbc537296dc525867535fb878ba"]
+  ]
+  [
+    "https://github.com/mirage/ocaml-cstruct/releases/download/v6.0.1/cstruct-v6.0.1.tbz"
+    "ocaml-cstruct"
+    [
+      "sha256=4a67bb8f042753453c59eabf0e47865631253ba694091ce6062aac05d47a9bed"
+      "sha512=3eeeb6ae0fd3b625cf1d308498f0a1e6951d16566561f3362fdf74e7158d92d8f6c6d9fa968ff15f8c19a1886dce99d0ef17b44dbb37b97cc68c9b088fdc2248"
+    ]
+  ]
+  [
+    "https://github.com/mirage/optint/releases/download/v0.1.0/optint-v0.1.0.tbz"
+    "optint"
+    [
+      "sha256=27847660223c16cc7eaf8fcd9d5589a0b802114330a2529578f8007d3b01185d"
+      "sha512=6ec2f6977b2cb148b0b9c2664e8a8525b0d0b987652f5a4c9754d200d8026de8bfab664d31807e68b5f1dffa8bbe5b51167435e6e66faf5baefb509c667e0c77"
+    ]
+  ]
+  [
+    "https://github.com/ocaml-community/cppo/archive/v1.6.8.tar.gz"
+    "cppo"
+    [
+      "md5=fed401197d86f9089e89f6cbdf1d660d"
+      "sha512=069bbe0ef09c03b0dc4b5795f909c3ef872fe99c6f1e6704a0fa97594b1570b3579226ec67fe11d696ccc349a4585055bbaf07c65eff423aa45af28abf38c858"
+    ]
+  ]
+  [
+    "git+https://github.com/ocaml-community/easy-format#4568bfa1887146ab6ce41a48c9e00c8c1329c6e4"
+    "easy-format"
+  ]
+  [
+    "https://github.com/ocaml-community/yojson/releases/download/1.7.0/yojson-1.7.0.tbz"
+    "yojson"
+    ["md5=b89d39ca3f8c532abe5f547ad3b8f84d"]
+  ]
+  [
+    "https://github.com/ocaml-dune/csexp/releases/download/1.5.1/csexp-1.5.1.tbz"
+    "csexp"
+    [
+      "sha256=d605e4065fa90a58800440ef2f33a2d931398bf2c22061a8acb7df845c0aac02"
+      "sha512=d785bbabaff9f6bf601399149ef0a42e5e99647b54e27f97ef1625907793dda22a45bf83e0e8a1eba2c63634c5484b54739ff0904ef556f5fc592efa38af7505"
+    ]
+  ]
+  [
+    "git+https://github.com/ocaml-multicore/domainslib.git#20d9f741fe89cacfd91d28dcd9fd21c1d9ccea3e"
+    "domainslib"
+  ]
+  [
+    "https://github.com/ocaml-ppx/ppx_derivers/archive/1.2.1.tar.gz"
+    "ppx_derivers"
+    ["md5=5dc2bf130c1db3c731fe0fffc5648b41"]
+  ]
+  [
+    "https://github.com/ocaml/camlp-streams/archive/refs/tags/v5.0.tar.gz"
+    "camlp-streams"
+    [
+      "md5=305d8eaf9cebaf137a8a63770f0ea162"
+      "sha512=f42e2f5e5ca353b3d647cd7e97a278c167c2d1abd185a634f155965cec29e35d9be7ce940b4c205b0577d7e9b6f714580bfd2e2fd79f1b1b461bc3fb96d26d36"
+    ]
+  ]
+  [
+    "https://github.com/ocaml/dune/releases/download/2.9.3/dune-site-2.9.3.tbz"
+    "dune_"
+    [
+      "sha256=3e65ec73ab2c80d50d4ffd6c46cbfb22eacd0e5587a4be8af8ae69547d5f88d6"
+      "sha512=04b48501ac16c3608e3b6bfbdbabf810df0fb844ea3b7d25ba50f03b9d6cb1d2c933cf747d694029d82a9777a774e48e5c38ab010fe53ce1eae367da0ed04d6d"
+    ]
+  ]
+  [
+    "https://github.com/ocaml/ocaml-re/releases/download/1.10.3/re-1.10.3.tbz"
+    "ocaml-re"
+    [
+      "sha256=846546967f3fe31765935dd40a6460a9424337ecce7b12727fcba49480790ebb"
+      "sha512=d02103b7b8b8d8bc797341dcc933554745427f3c1b51b54b4ac9ff81badfd68c94726c57548b08e00ca99f3e09741b54b6500e97c19fc0e8fcefd6dfbe71da7f"
+    ]
+  ]
+  [
+    "https://github.com/ocaml/stdlib-shims/releases/download/0.3.0/stdlib-shims-0.3.0.tbz"
+    "stdlib-shims"
+    [
+      "sha256=babf72d3917b86f707885f0c5528e36c63fccb698f4b46cf2bab5c7ccdd6d84a"
+      "sha512=1151d7edc8923516e9a36995a3f8938d323aaade759ad349ed15d6d8501db61ffbe63277e97c4d86149cf371306ac23df0f581ec7e02611f58335126e1870980"
+    ]
+  ]
+  [
+    "https://github.com/ocurrent/ocaml-version/releases/download/v3.4.0/ocaml-version-v3.4.0.tbz"
+    "ocaml-version"
+    [
+      "sha256=d8c1beb5e8d8ebb7710b5f434ce66a3ec8b752b1e4d6ba87c4fe27452bdb8a25"
+      "sha512=215e5b0c4ea5fa5461cdc0fc81fbd84a2a319a246a19504d0a0abc8c891e252a9e41644356150a1dc25d56b3f7e084db7a0b15becab4e1339992e645fc3d8ef1"
+    ]
+  ]
+  [
+    "git+https://github.com/patricoferris/biniou#61a33539e3d4f1915b43aa376819cefae09b08d3"
+    "biniou"
+  ]
+  [
+    "git+https://github.com/patricoferris/bisect_ppx#8b82cf6c671da75fce9801bb7f8606ad89443d32"
+    "bisect_ppx"
+  ]
+  [
+    "git+https://github.com/patricoferris/fmt#55e284338acb17c33653b89a5dcf55ed9c273216"
+    "fmt"
+  ]
+  [
+    "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
+    "js_of_ocaml"
+  ]
+  [
+    "git+https://github.com/patricoferris/lib-findlib#0366110a80af77d931d31e5b1a9469714403957e"
+    "lib-findlib"
+  ]
+  [
+    "git+https://github.com/patricoferris/luv#df19e79c935fb5d2ec205e097c8843fedd8712fb"
+    "luv"
+  ]
+  [
+    "git+https://github.com/patricoferris/lwt#120cdba460d22369b0307e560a10da2977d519bb"
+    "lwt"
+  ]
+  [
+    "git+https://github.com/patricoferris/ocplib-endian#43e8c64548a2da55035f9968e91f3238835cc126"
+    "ocplib-endian"
+  ]
+  [
+    "git+https://github.com/patricoferris/odoc-parser#969e80cd796fd36940fffa97545a97aa5b82d03f"
+    "odoc-parser"
+  ]
+  [
+    "git+https://github.com/pitag-ha/ppxlib#31621eedacfa412ad59572d0d09a4d1b86553b3a"
+    "ppxlib"
+  ]
+  [
+    "https://github.com/pqwy/psq/releases/download/v0.2.0/psq-v0.2.0.tbz"
+    "psq"
+    ["md5=b94fb15f8878172bf58446b7d0fb7c1e"]
+  ]
+  [
+    "https://github.com/realworldocaml/mdx/releases/download/2.1.0/mdx-2.1.0.tbz"
+    "mdx"
+    [
+      "sha256=a25d73cbc2ce0c361d727bff8c1c84d299ea279ba342e3002eadeff72eed77fa"
+      "sha512=05e86a3a4513299433583b8c7cd482edfc513b08002825ae8ec390e537139eb7dd7b9131679d181e62147f9ff0d1814a1936d2e2983fc7530dcb85e347d4b603"
+    ]
+  ]
+  [
+    "https://github.com/talex5/lwt_eio/releases/download/v0.1/lwt_eio-0.1.tbz"
+    "lwt_eio"
+    [
+      "sha256=88083d134a3b9fb4070ffd11a503a75bfa4a3810221134bce3e9cd0173c7f62c"
+      "sha512=1a4f3a4492a08527b68bfb65d3b266e1da8f5409e3d3e8d506c1f814fbc0835b6245a94bbe21c3940fc28c76d32db4038797853e53e8653d1f87ccfddbc94ce1"
+    ]
+  ]
+  [
+    "https://gitlab.inria.fr/fpottier/menhir/-/archive/20211012/archive.tar.gz"
+    "menhir"
+    [
+      "md5=f631f4c03859254a7d725f054633ee44"
+      "sha512=13376d3c07158c36dd9b4617294a7e4d53ba90062ab09fae48c36b76f08133e2ffc4be13a1bc88980617c5d1046631844815c9ee7fd7c821699bacaf245b1ed8"
+    ]
+  ]
+]
+x-opam-monorepo-root-packages: ["multicore-monorepo"]
+x-opam-monorepo-version: "0.2"

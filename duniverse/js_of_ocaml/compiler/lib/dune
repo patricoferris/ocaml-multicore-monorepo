@@ -1,0 +1,45 @@
+(library
+ (name js_of_ocaml_compiler)
+ (public_name js_of_ocaml-compiler)
+ (synopsis "Js_of_ocaml compiler library")
+ (libraries
+  compiler-libs.common
+  compiler-libs.bytecomp
+  bytes
+  menhirLib
+  (select
+   source_map_io.ml
+   from
+   (yojson -> source_map_io.yojson.ml)
+   (-> source_map_io.unsupported.ml)))
+ (flags
+  (:standard -w -7-37 -safe-string))
+ (preprocess
+  (pps ppx_optcomp_light)))
+
+(ocamllex js_lexer annot_lexer)
+
+(menhir
+ (modules js_parser)
+ (flags
+  --table
+  --external-tokens
+  Js_token
+  --explain
+  --unused-token
+  TComment
+  --unused-token
+  TCommentLineDirective
+  --unused-token
+  TUnknown))
+
+(menhir
+ (modules annot_parser)
+ (flags --explain))
+
+(rule
+ (targets compiler_version.ml)
+ (deps
+  (:input-file ../../version.ml.in))
+ (action
+  (copy %{input-file} %{targets})))
