@@ -1,23 +1,25 @@
-name: Test monorepo
-on:
-  pull_request:
-  push:
+name: CI
+on: [push, pull_request]
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-        ocaml-compiler:
-          - 5.00.0+trunk
-    runs-on: ${{ matrix.os }}
+  debian_500_trunk:
+    runs-on: ubuntu-latest
+    container:
+      image: ocaml/opam:debian-11-ocaml-5.00
+      env:
+        HOME: /home/opam
+      options: --user 1000
+    env:
+      HOME: /home/opam
+    defaults:
+      run:
+        working-directory: /home/opam
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Use OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v2
-        with:
-          ocaml-compiler: ${{ matrix.ocaml-compiler }}
-      - run: opam install dune.2.9.2
-      - run: opam exec -- dune runtest
+    - run: mkdir -p /home/opam/package
+    - name: ~~~ Cloning ~~~
+      run: git clone https://github.com/$GITHUB_REPOSITORY . && git checkout $GITHUB_SHA
+      working-directory: /home/opam/package
+    - name: ~~~ Install Dune ~~~
+      run: opam install dune.2.9.2
+      working-directory: /home/opam/package
+    - name: ~~~ Build the duniverse (or at least parts of it) ~~~
+      run: opam exec -- dune runtest
