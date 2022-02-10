@@ -15,8 +15,8 @@ jobs:
         working-directory: /home/opam
     steps:
     - run: mkdir -p /home/opam/package
-    - name: ~~~ Cloning ~~~
-      run: git clone https://github.com/$GITHUB_REPOSITORY . && git checkout $GITHUB_SHA
+    - name: ~~~ Checkout code ~~~
+        uses: actions/checkout@v2
       working-directory: /home/opam/package
     - name: ~~~ Install Dune ~~~
       run: opam install dune.2.9.2
