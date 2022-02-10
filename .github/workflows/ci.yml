@@ -14,9 +14,17 @@ jobs:
       run:
         working-directory: /home/opam
     steps:
-    - name: ~~~ Checkout code ~~~
-      uses: actions/checkout@v2
-    - name: ~~~ Install Dune ~~~
+    steps:
+    - run: mkdir -p /home/opam/package
+    - name: Cloning
+      run: git clone https://${{ secrets.GithubToken }}@github.com/$GITHUB_REPOSITORY . && git checkout ${{ github.event.pull_request.head.sha }}
+      working-directory: /home/opam/package
+      if: ${{ github.event_name == 'pull_request' }}
+    - name: ~~~ Cloning ~~~
+      run: git clone https://${{ secrets.GithubToken }}github.com/$GITHUB_REPOSITORY .
+      working-directory: /home/opam/package
+      if: ${{ github.event_name == 'push' }}
+    - name: ~~~ Install dune ~~~
       run: opam install dune.2.9.2
-    - name: ~~~ Build the duniverse (or at least parts of it) ~~~
+    - name: ~~~ Build with the Duniverse ~~~
       run: opam exec -- dune runtest
