@@ -16,7 +16,7 @@ jobs:
     steps:
     - run: mkdir -p /home/opam/package
     - name: ~~~ Checkout code ~~~
-        uses: actions/checkout@v2
+      uses: actions/checkout@v2
       working-directory: /home/opam/package
     - name: ~~~ Install Dune ~~~
       run: opam install dune.2.9.2
