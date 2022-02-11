@@ -51,6 +51,11 @@ let test ?(max_size=10) input p =
   next := input;
   let i = R.of_flow mock_flow ~max_size in
   p i
+
+let parse_exn p flow ~max_size =
+  match R.parse_exn p flow ~max_size with
+  | x -> traceln "Ok: %S" x
+  | exception Failure msg -> traceln "Failure: %s" msg
 ```
 
 
@@ -480,4 +485,82 @@ Error (`Msg "Buffer size limit exceeded when reading at offset 0")
 +mock_flow returning 7 bytes
 +mock_flow returning Eof
 Exception: End_of_file.
+```
+
+A sequence node remembers its offset and fails if used out of sequence:
+
+```ocaml
+# next := ["one"; "\ntwo\n"; "three"];;
+- : unit = ()
+# let i = R.of_flow mock_flow ~max_size:100;;
+val i : R.t = <abstr>
+# let seq = R.lines i;;
+val seq : string Seq.t = <fun>
+# let line, seq' = match seq () with Cons (a, b) -> (a, b) | _ -> assert false;;
++mock_flow returning 3 bytes
++mock_flow returning 5 bytes
+val line : string = "one"
+val seq' : string Seq.t = <fun>
+
+# seq ();;
+Exception:
+Invalid_argument
+ "Sequence is stale (expected to be used at offset 0, but stream is now at 4)".
+
+# seq' ();;
+- : string Seq.node = Seq.Cons ("two", <fun>)
+
+# seq' ();;
+Exception:
+Invalid_argument
+ "Sequence is stale (expected to be used at offset 4, but stream is now at 8)".
+```
+
+## Convenience wrapper
+
+`parse` turns parser errors into friendly messages:
+
+```ocaml
+# R.(parse (string "FROM:" *> take_all)) (Eio.Flow.string_source "FROM:A") ~max_size:5;;
+- : (string, [> `Msg of string ]) result = Ok "A"
+
+# R.(parse (string "FROM:" *> take_all)) (Eio.Flow.string_source "TO:B") ~max_size:5;;
+- : (string, [> `Msg of string ]) result =
+Error (`Msg "Expected \"FROM:\" but got \"TO:B\" (at offset 0)")
+
+# R.(parse (string "FROM:" *> take_all)) (Eio.Flow.string_source "FROM:ABCDE") ~max_size:5;;
+- : (string, [> `Msg of string ]) result =
+Error (`Msg "Buffer size limit exceeded when reading at offset 5")
+
+# R.(parse (string "END")) (Eio.Flow.string_source "ENDING") ~max_size:5;;
+- : (unit, [> `Msg of string ]) result =
+Error (`Msg "Unexpected data after parsing (at offset 3)")
+
+# R.(parse (string "END")) (Eio.Flow.string_source "E") ~max_size:5;;
+- : (unit, [> `Msg of string ]) result =
+Error (`Msg "Unexpected end-of-file at offset 1")
+```
+
+`parse_exn` is similar, but raises (we then catch it and print it nicely):
+
+```ocaml
+# parse_exn R.(string "FROM:" *> take_all) (Eio.Flow.string_source "FROM:A") ~max_size:5;;
++Ok: "A"
+- : unit = ()
+
+# parse_exn R.(string "FROM:" *> take_all) (Eio.Flow.string_source "TO:B") ~max_size:5;;
++Failure: Expected "FROM:" but got "TO:B" (at offset 0)
+- : unit = ()
+
+# parse_exn R.(string "FROM:" *> take_all) (Eio.Flow.string_source "FROM:ABCDE") ~max_size:5;;
++Failure: Buffer size limit exceeded when reading at offset 5
+- : unit = ()
+
+# parse_exn R.(take 3) (Eio.Flow.string_source "ENDING") ~max_size:5;;
++Failure: Unexpected data after parsing (at offset 3)
+- : unit = ()
+
+# parse_exn R.(take 3) (Eio.Flow.string_source "E") ~max_size:5;;
++Failure: Unexpected end-of-file at offset 1
+- : unit = ()
 ```

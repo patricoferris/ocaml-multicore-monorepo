@@ -1,5 +1,9 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 jobs:
   debian_500_trunk:
     runs-on: ubuntu-latest
@@ -15,11 +19,15 @@ jobs:
         working-directory: /home/opam
     steps:
     - run: mkdir -p /home/opam/package
+    - name: Cloning
+      run: git clone https://${{ secrets.GithubToken }}@github.com/$GITHUB_REPOSITORY . && git checkout ${{ github.event.pull_request.head.sha }}
+      working-directory: /home/opam/package
+      if: ${{ github.event_name == 'pull_request' }}
     - name: ~~~ Cloning ~~~
-      run: git clone https://github.com/$GITHUB_REPOSITORY . && git checkout $GITHUB_SHA
+      run: git clone https://${{ secrets.GithubToken }}@github.com/$GITHUB_REPOSITORY .
       working-directory: /home/opam/package
-    - name: ~~~ Install Dune ~~~
+      if: ${{ github.event_name == 'push' }}
+    - name: ~~~ Install dune ~~~
       run: opam install dune.2.9.2
-      working-directory: /home/opam/package
-    - name: ~~~ Build the duniverse (or at least parts of it) ~~~
+    - name: ~~~ Build with the Duniverse ~~~
       run: opam exec -- dune runtest

@@ -21,6 +21,8 @@ open Eio.Std
 open Eio.Private.Effect
 open Eio.Private.Effect.Deep
 
+module Ctf = Eio.Private.Ctf
+
 module Fibre_context = Eio.Private.Fibre_context
 module Lf_queue = Eio_utils.Lf_queue
 
@@ -136,7 +138,7 @@ module Low_level = struct
 
   module Handle = struct
     type 'a t = {
-      mutable release_hook : Eio.Hook.t;        (* Use this on close to remove switch's [on_release] hook. *)
+      mutable release_hook : Eio.Switch.hook;        (* Use this on close to remove switch's [on_release] hook. *)
       mutable fd : [`Open of 'a Luv.Handle.t | `Closed]
     }
 
@@ -152,7 +154,7 @@ module Low_level = struct
       Ctf.label "close";
       let fd = get "close" t in
       t.fd <- `Closed;
-      Eio.Hook.remove t.release_hook;
+      Eio.Switch.remove_hook t.release_hook;
       enter_unchecked @@ fun t k ->
       Luv.Handle.close fd (enqueue_thread t k)
 
@@ -162,7 +164,7 @@ module Low_level = struct
     let to_luv x = get "to_luv" x
 
     let of_luv_no_hook fd =
-      { fd = `Open fd; release_hook = Eio.Hook.null }
+      { fd = `Open fd; release_hook = Eio.Switch.null_hook }
 
     let of_luv ~sw fd =
       let t = of_luv_no_hook fd in
@@ -178,13 +180,13 @@ module Low_level = struct
         | `Peek -> Some fd
         | `Take ->
           t.fd <- `Closed;
-          Eio.Hook.remove t.release_hook;
+          Eio.Switch.remove_hook t.release_hook;
           Some fd
   end
 
   module File = struct
     type t = {
-      mutable release_hook : Eio.Hook.t;        (* Use this on close to remove switch's [on_release] hook. *)
+      mutable release_hook : Eio.Switch.hook;        (* Use this on close to remove switch's [on_release] hook. *)
       mutable fd : [`Open of Luv.File.t | `Closed]
     }
 
@@ -200,7 +202,7 @@ module Low_level = struct
       Ctf.label "close";
       let fd = get "close" t in
       t.fd <- `Closed;
-      Eio.Hook.remove t.release_hook;
+      Eio.Switch.remove_hook t.release_hook;
       await_exn (fun loop _fibre -> Luv.File.close ~loop fd)
 
     let ensure_closed t =
@@ -209,7 +211,7 @@ module Low_level = struct
     let to_luv = get "to_luv"
 
     let of_luv_no_hook fd =
-      { fd = `Open fd; release_hook = Eio.Hook.null }
+      { fd = `Open fd; release_hook = Eio.Switch.null_hook }
 
     let of_luv ~sw fd =
       let t = of_luv_no_hook fd in
@@ -250,7 +252,7 @@ module Low_level = struct
       | `Peek -> fd
       | `Take ->
         t.fd <- `Closed;
-        Eio.Hook.remove t.release_hook;
+        Eio.Switch.remove_hook t.release_hook;
         fd
   end
 
@@ -365,7 +367,7 @@ let flow fd = object (_ : <source; sink; ..>)
 
   method probe : type a. a Eio.Generic.ty -> a option = function
     | FD -> Some fd
-    | Eio_unix.Unix_file_descr op -> Some (File.to_unix op fd)
+    | Eio_unix.Private.Unix_file_descr op -> Some (File.to_unix op fd)
     | _ -> None
 
   method read_into buf =
@@ -376,7 +378,7 @@ let flow fd = object (_ : <source; sink; ..>)
 
   method read_methods = []
 
-  method write src =
+  method copy src =
     let buf = Luv.Buffer.create 4096 in
     try
       while true do
@@ -394,16 +396,14 @@ let socket sock = object
   inherit Eio.Flow.two_way as super
 
   method! probe : type a. a Eio.Generic.ty -> a option = function
-    | Eio_unix.Unix_file_descr op -> Stream.to_unix_opt op sock
+    | Eio_unix.Private.Unix_file_descr op -> Stream.to_unix_opt op sock
     | x -> super#probe x
 
   method read_into buf =
     let buf = Cstruct.to_bigarray buf in
     Stream.read_into sock buf
 
-  method read_methods = []
-
-  method write src =
+  method copy src =
     let buf = Luv.Buffer.create 4096 in
     try
       while true do
@@ -428,13 +428,13 @@ class virtual ['a] listening_socket ~backlog sock = object (self)
   inherit Eio.Net.listening_socket as super
 
   method! probe : type a. a Eio.Generic.ty -> a option = function
-    | Eio_unix.Unix_file_descr op -> Stream.to_unix_opt op sock
+    | Eio_unix.Private.Unix_file_descr op -> Stream.to_unix_opt op sock
     | x -> super#probe x
 
   val ready = Eio.Semaphore.make 0
 
   method private virtual make_client : 'a Luv.Stream.t
-  method private virtual get_client_addr : 'a Stream.t -> Eio.Net.Sockaddr.stream
+  method private virtual get_client_addr : 'a Stream.t -> Eio.Net.Sockaddr.t
 
   method close = Handle.close sock
 
@@ -474,43 +474,6 @@ let luv_ip_addr_to_eio addr =
   let host = Luv.Sockaddr.to_string addr |> Option.get in
   let port = Luv.Sockaddr.port addr |> Option.get in
   (Eio_unix.Ipaddr.of_unix (Unix.inet_addr_of_string host), port)
-
-module Endpoint = struct
-  type 'a t = [`UDP] Handle.t
-
-  let recv (sock:'a t) buf =
-    let r = enter (fun t k ->
-        Fibre_context.set_cancel_fn k.fibre (fun ex ->
-            Luv.UDP.recv_stop (Handle.get "recv_into:cancel" sock) |> or_raise;
-            enqueue_failed_thread t k ex
-          );
-        Luv.UDP.recv_start (Handle.get "recv_start" sock) ~allocate:(fun _ -> buf) (fun r ->
-            Luv.UDP.recv_stop (Handle.get "recv_stop" sock) |> or_raise;
-            if Fibre_context.clear_cancel_fn k.fibre then enqueue_thread t k r
-          )
-      ) in
-    match r with
-    | Ok (buf', sockaddr, _recv_flags) -> 
-      (* if List.mem `PARTIAL recv_flags then raise Partial_read; Is this an exception? *)
-      Option.map luv_ip_addr_to_eio sockaddr, Luv.Buffer.size buf'
-    | Error (`ECONNRESET as e) -> raise (Eio.Net.Connection_reset (Luv_error e))
-    | Error x -> raise (Luv_error x)
-
-  let send t buf = function 
-  | `Udp (host, port) ->
-    let bufs = [ Cstruct.to_bigarray buf ] in
-    await_exn (fun _loop _fibre -> Luv.UDP.send (Handle.get "send" t) bufs (luv_addr_of_eio host port))
-  | _ -> assert false
-end
-
-let endpoint endp = object
-  inherit Eio.Net.endpoint
-
-  method send sockaddr bufs = Endpoint.send endp bufs sockaddr 
-  method recv buf = 
-    let buf = Cstruct.to_bigarray buf in
-    Endpoint.recv endp buf
-end
 
 let listening_ip_socket ~backlog sock = object
   inherit [[ `TCP ]] listening_socket ~backlog sock
@@ -566,21 +529,11 @@ let net = object
       let sock = Luv.Pipe.init ~loop:(get_loop ()) () |> or_raise |> Handle.of_luv ~sw in
       await_exn (fun _loop _fibre -> Luv.Pipe.connect (Handle.get "connect" sock) path);
       socket sock
-
-  method endpoint ~sw = function
-    | `Udp (host, port) -> 
-      let domain = match Eio.Net.Ipaddr.classify host with `V4 _ -> `INET | _ -> `INET6 in
-      let sock = Luv.UDP.init ~domain ~loop:(get_loop ()) () |> or_raise in
-      let addr = luv_addr_of_eio host port in
-      Luv.UDP.bind sock addr |> or_raise;
-      endpoint (Handle.of_luv ~sw sock)
 end
 
 let secure_random =
   object
     inherit Eio.Flow.source
-
-    method read_methods = []
 
     method read_into buf =
       let ba = Cstruct.to_bigarray buf in
@@ -787,14 +740,14 @@ let rec run main =
               let k = { Suspended.k; fibre } in
               fn fibre (enqueue_result_thread st k)
             )
-        | Eio_unix.Effects.Await_readable fd -> Some (fun k ->
+        | Eio_unix.Private.Await_readable fd -> Some (fun k ->
             match Fibre_context.get_error fibre with
             | Some e -> discontinue k e
             | None ->
               let k = { Suspended.k; fibre } in
               Poll.await_readable st k fd
           )
-        | Eio_unix.Effects.Await_writable fd -> Some (fun k ->
+        | Eio_unix.Private.Await_writable fd -> Some (fun k ->
             match Fibre_context.get_error fibre with
             | Some e -> discontinue k e
             | None ->

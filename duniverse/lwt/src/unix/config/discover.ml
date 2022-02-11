@@ -64,7 +64,7 @@
 
 module Configurator = Configurator.V1
 let split = Configurator.Flags.extract_blank_separated_words
-let uppercase = String_compat.uppercase
+let uppercase = String.uppercase_ascii
 
 
 
