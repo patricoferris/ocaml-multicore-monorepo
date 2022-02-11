@@ -7,11 +7,12 @@ bug-reports: "https://github.com/patricoferris/ocaml-multicore-monorepo/issues"
 depends: [
   "ocaml-variants" {= "5.00.0+trunk" }
   "dune" {>= "2.9.2"}
-  "eio_main"
+  "eio_main" {>= "0.1"}
   "lwt_eio"
   "domainslib"
   "mdx"
   "base"
+  "multipart_form"
 #   Need to port menhir 5.00 changes to the duniverse
 #   "notty"
   "js_of_ocaml-compiler"
@@ -21,6 +22,7 @@ depends: [
   "ctypes"
   "bisect_ppx"
   "fmt" {= "0.8.10+dune"}
+  "dream"
 ]
 build: [
   ["dune" "subst"] {pinned}
@@ -38,8 +40,6 @@ build: [
 ]
 dev-repo: "git+https://github.com/patricoferris/ocaml-multicore-monorepo.git"
 pin-depends: [
-    "findlib.dev" "git+https://github.com/patricoferris/lib-findlib#0366110a80af77d931d31e5b1a9469714403957e"
-    "ocamlfind.dev" "git+https://github.com/patricoferris/lib-findlib#0366110a80af77d931d31e5b1a9469714403957e"
     "sexplib0.dev" "git+https://github.com/janestreet/sexplib0#f13a9b23e7f0a68d9e5d81af30c35cbd419f8b25"
     "sexplib" "git+https://github.com/patricoferris/sexplib#adb4e459693303d7236fda33307ee8c5c82a300b"
     "notty.dev" "git+https://github.com/patricoferris/notty#30ceb680991557fd1d190dfbd733145220cc165d"
@@ -51,7 +51,15 @@ pin-depends: [
     "menhirLib.dev" "git+https://gitlab.inria.fr/fpottier/menhir#cea506b862ddc34fb6a25b60ae145b755a0db737"
     "menhirSdk.dev" "git+https://gitlab.inria.fr/fpottier/menhir#cea506b862ddc34fb6a25b60ae145b755a0db737"
     "bisect_ppx.dev" "git+https://github.com/patricoferris/bisect_ppx#8b82cf6c671da75fce9801bb7f8606ad89443d32"
+    
+    # Duniverse fixes and bumps
+    "findlib.dev" "git+https://github.com/patricoferris/lib-findlib#0366110a80af77d931d31e5b1a9469714403957e"
+    "ocamlfind.dev" "git+https://github.com/patricoferris/lib-findlib#0366110a80af77d931d31e5b1a9469714403957e"
     "fmt.0.8.10+dune" "git+https://github.com/patricoferris/fmt#55e284338acb17c33653b89a5dcf55ed9c273216"
+    "uutf.dev" "git+https://github.com/patricoferris/uutf#b70b185bb59928d4d1e7800c019c279cee908807"
+    "ptime.dev" "git+https://github.com/patricoferris/ptime#2af4df988dad29e955f82c868c3539ca1d5fcda7"
+
+    "multipart_form.dev" "git+https://github.com/patricoferris/multipart_form#6b7b0caa9d5e472d27e6964969fa24d70e8fbcf1"
     # Luv doesn't like to be vendored it would seem :/
     "luv.dev" "git+https://github.com/patricoferris/luv#df19e79c935fb5d2ec205e097c8843fedd8712fb"
     # Note these jsoo packages do not support effects, just compiling under a 5.00.0+trunk branch!

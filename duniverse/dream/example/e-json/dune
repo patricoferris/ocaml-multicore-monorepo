@@ -1,0 +1,6 @@
+(executable
+ (name json)
+ (libraries dream)
+ (preprocess (pps ppx_yojson_conv)))
+
+(data_only_dirs _esy esy.lock lib node_modules)

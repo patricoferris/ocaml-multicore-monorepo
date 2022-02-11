@@ -30,4 +30,6 @@ jobs:
     - name: ~~~ Install dune ~~~
       run: opam install dune.2.9.2
     - name: ~~~ Build with the Duniverse ~~~
-      run: opam exec -- dune runtest
+      run: |
+        opam exec -- dune build
+        opam exec -- dune runtest

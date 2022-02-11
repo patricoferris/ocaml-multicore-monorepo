@@ -1,0 +1,78 @@
+name: test
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-latest
+        ocaml:
+        - 4.13.x
+        - 4.12.x
+        - 4.11.x
+        - 4.10.x
+        - 4.09.x
+        - 4.08.x
+        include:
+        - os: macos-latest
+          ocaml: 4.12.x
+        # Windows is blocked until we no longer require libev; Dream still works
+        # on Windows, but testing it is awkward at the moment.
+
+    runs-on: ${{matrix.os}}
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+
+    - uses: avsm/setup-ocaml@v2
+      with:
+        ocaml-compiler: ${{matrix.ocaml}}
+
+    - run: opam depext --yes conf-postgresql
+    - run: opam depext --yes conf-libev
+    # Needed until https://github.com/reasonml/reason/pull/2660 is in opam.
+    - run: opam pin add reason --yes --no-action --dev-repo
+    - run: opam install --yes --deps-only --with-test ./dream.opam
+    - run: opam exec -- dune runtest
+    - run: |
+        set -e
+        set -x
+
+        EXAMPLES=$(find example -maxdepth 1 -type d -not -name "m-mirage*"| grep -v "^example/0" | grep -v "^example$" | sort)
+        shopt -s nullglob
+
+        for EXAMPLE in $EXAMPLES
+        do
+          FILE=$(ls $EXAMPLE/*.ml $EXAMPLE/*.re $EXAMPLE/server/*.ml $EXAMPLE/server/*.re)
+          EXE=$(echo $FILE | sed 's/\..*$/.exe/g')
+          echo dune build $EXE
+          opam exec -- dune build $EXE
+        done
+
+  quickstart:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-latest
+        - macos-latest
+
+    runs-on: ${{matrix.os}}
+    steps:
+    - name: Quick start
+      run: |
+        set -x
+        touch output
+        tail -f output | grep --line-buffered 'Ctrl' | xargs -L1 -I FOO bash -c "echo Success && touch success && killall middleware.exe" &
+        tail -f output &
+        ((curl -fsSL https://raw.githubusercontent.com/aantron/dream/$GITHUB_SHA/example/quickstart.sh | bash -s $GITHUB_SHA) || true) > output 2>&1
+        sleep 1
+        if [ -f success ]
+        then
+          exit 0
+        else
+          exit 1
+        fi

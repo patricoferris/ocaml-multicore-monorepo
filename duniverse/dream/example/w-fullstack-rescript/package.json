@@ -1,0 +1,15 @@
+{
+  "name": "fullstack-rescript",
+  "dependencies": {
+    "esbuild": "*",
+    "esy": "*",
+    "rescript": "*",
+    "rescript-webapi": "*"
+  },
+  "scripts": {
+    "postinstall": "npx esy install",
+    "build": "rescript",
+    "pack": "esbuild lib/js/client/client.js --bundle --outfile=static/client.js",
+    "start": "npm run build && npm run pack && npx esy start"
+  }
+}

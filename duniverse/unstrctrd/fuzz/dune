@@ -1,0 +1,8 @@
+(executable
+ (name fuzz)
+ (libraries fmt rresult unstrctrd unstrctrd.parser crowbar))
+
+(rule
+ (alias runtest)
+ (action
+  (run ./fuzz.exe)))

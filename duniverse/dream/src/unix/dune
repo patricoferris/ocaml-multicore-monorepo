@@ -1,0 +1,12 @@
+(library
+ (public_name dream.unix)
+ (name dream__unix)
+ (libraries
+  digestif
+  dream-pure
+  dream.server
+  lwt.unix
+  magic-mime
+ )
+ (preprocess (pps lwt_ppx))
+ (instrumentation (backend bisect_ppx)))
