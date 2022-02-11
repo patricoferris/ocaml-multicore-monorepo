@@ -11,7 +11,7 @@ jobs:
       image: ocaml/opam:debian-11-ocaml-5.00
       env:
         HOME: /home/opam
-      options: --user 1000
+      options: --user 1000 --ulimit memlock=819200000:819200000
     env:
       HOME: /home/opam
     defaults:
