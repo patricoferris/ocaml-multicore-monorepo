@@ -1,0 +1,165 @@
+(data_only_dirs *)
+
+
+(subdir gluten/lib
+ (library
+  (name gluten)
+  (public_name dream-httpaf.gluten)
+  (libraries
+   bigstringaf
+   faraday)))
+
+(subdir gluten/lwt
+ (library
+  (name gluten_lwt)
+  (public_name dream-httpaf.gluten-lwt)
+  (libraries
+   dream-httpaf.gluten
+   lwt)))
+
+(subdir gluten/lwt-unix
+ (library
+  (name gluten_lwt_unix)
+  (public_name dream-httpaf.gluten-lwt-unix)
+  (libraries
+   faraday-lwt-unix
+   dream-httpaf.gluten-lwt
+   lwt.unix
+   (select
+    ssl_io.ml
+    from
+    (lwt_ssl_disabled -> ssl_io.real.ml)
+    (-> ssl_io.dummy.ml))
+   (select
+    tls_io.ml
+    from
+    (tls.lwt -> tls_io.real.ml)
+    (-> tls_io.dummy.ml)))
+  (modules gluten_lwt_unix tls_io ssl_io)))
+
+
+
+(subdir websocketaf/lib
+ (library
+  (name websocketaf)
+  (public_name dream-httpaf.websocketaf)
+  (libraries
+   angstrom
+   base64
+   bigstringaf
+   faraday
+   dream-httpaf.gluten
+   httpaf
+   result)))
+
+(subdir websocketaf/lwt
+ (library
+  (name websocketaf_lwt)
+  (public_name dream-httpaf.websocketaf-lwt)
+  (libraries
+   base64
+   digestif.ocaml
+   dream-httpaf.gluten-lwt
+   lwt
+   dream-httpaf.websocketaf)))
+
+(subdir websocketaf/lwt-unix
+ (library
+  (name websocketaf_lwt_unix)
+  (public_name dream-httpaf.websocketaf-lwt-unix)
+  (libraries
+   faraday-lwt-unix
+   dream-httpaf.gluten-lwt-unix
+   lwt.unix
+   dream-httpaf.websocketaf-lwt)))
+
+
+
+(subdir httpaf/lib
+ (library
+  (name httpaf)
+  (public_name dream-httpaf.httpaf)
+  (libraries
+   angstrom
+   bigstringaf
+   faraday
+   result)))
+
+(subdir httpaf/lwt
+ (library
+  (name httpaf_lwt)
+  (public_name dream-httpaf.httpaf-lwt)
+  (libraries
+   dream-httpaf.gluten
+   dream-httpaf.gluten-lwt
+   dream-httpaf.httpaf
+   lwt)))
+
+(subdir httpaf/lwt-unix
+ (library
+  (name httpaf_lwt_unix)
+  (public_name dream-httpaf.httpaf-lwt-unix)
+  (libraries
+   faraday-lwt-unix
+   dream-httpaf.gluten-lwt-unix
+   dream-httpaf.httpaf
+   dream-httpaf.httpaf-lwt
+   lwt.unix)))
+
+
+
+(subdir h2/hpack/util
+ (executables
+  (names gen_huffman gen_static)
+  (libraries
+   compiler-libs.common)))
+
+(subdir h2/hpack/src
+ (library
+  (name hpack)
+  (public_name dream-httpaf.hpack)
+  (libraries
+   angstrom
+   faraday))
+ (rule
+  (targets huffman_table.ml)
+  (deps ../util/huffman_table.txt)
+  (action
+   (with-stdout-to
+    %{targets}
+    (run ../util/gen_huffman.exe %{deps})))))
+
+(subdir h2/lib
+ (library
+  (name h2)
+  (public_name dream-httpaf.h2)
+  (libraries
+   angstrom
+   base64
+   bigstringaf
+   faraday
+   dream-httpaf.hpack
+   dream-httpaf.httpaf
+   psq
+   result)))
+
+(subdir h2/lwt
+ (library
+  (name h2_lwt)
+  (public_name dream-httpaf.h2-lwt)
+  (libraries
+   dream-httpaf.gluten
+   dream-httpaf.gluten-lwt
+   lwt
+   dream-httpaf.h2)))
+
+(subdir h2/lwt-unix
+ (library
+  (name h2_lwt_unix)
+  (public_name dream-httpaf.h2-lwt-unix)
+  (libraries
+   faraday-lwt-unix
+   dream-httpaf.gluten-lwt-unix
+   dream-httpaf.h2
+   dream-httpaf.h2-lwt
+   lwt.unix)))

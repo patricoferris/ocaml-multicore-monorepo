@@ -1,0 +1,14 @@
+(library
+ (public_name dream-pure)
+ (name dream_pure)
+ (libraries
+  base64
+  bigstringaf
+  hmap
+  lwt
+  eio
+  uri
+  ptime
+ )
+ (preprocess (pps lwt_ppx))
+ (instrumentation (backend bisect_ppx)))

@@ -1,0 +1,6 @@
+build/
+odoc/
+site/index.html
+actual
+gh-pages/
+node_modules/

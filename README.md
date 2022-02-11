@@ -19,7 +19,7 @@ $ opam switch create 5.00.0+trunk
 $ opam install dune.2.9.2 
 ```
 
-From there you can make sure the small `Eio_main` function works from the `README.md` by running `dune runtest`.
+From there you can make sure the small `Eio_main` function works from the `README.md` by running `dune runtest`. There is an `example` directory too that can be built with `dune build`.
 
 Then create a `src` directory for your project, build it using the vendored libraries and run `dune build`. As `5.00.0+trunk` progresses more things are likely to break so you could be unfortunate enough to get a new 5.00.0 compiler that deprecates some more libraries and causes things to break. Feel free to open an issue if that is the case!
 

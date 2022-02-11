@@ -1,0 +1,19 @@
+version: "3"
+
+services:
+  postgres:
+    image: postgres
+    environment:
+      - POSTGRES_USER=dream
+      - POSTGRES_DB=dream
+      - POSTGRES_PASSWORD=password
+
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+    links:
+      - postgres
+    restart: always
+    logging:
+      driver: ${LOGGING_DRIVER:-json-file}

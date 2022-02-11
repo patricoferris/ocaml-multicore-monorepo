@@ -1,0 +1,10 @@
+{
+  "name": "fullstack-rescript",
+  "bs-dependencies": [
+    "rescript-webapi"
+  ],
+  "sources": [
+    "common",
+    "client"
+  ]
+}

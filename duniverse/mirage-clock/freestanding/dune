@@ -1,0 +1,22 @@
+(library
+ (name        mirage_clock_freestanding)
+ (wrapped     false)
+ (public_name mirage-clock-freestanding)
+ (libraries   mirage-clock)
+ (foreign_stubs
+  (language c)
+  (names clock_stubs)))
+
+(rule
+ (target clock_stubs.c)
+ (enabled_if
+  (<> %{context_name} "freestanding"))
+ (deps (:src clock_stubs.default.c))
+ (action (copy %{src} %{target})))
+
+(rule
+ (target clock_stubs.c)
+ (enabled_if
+  (= %{context_name} "freestanding"))
+ (deps (:src clock_stubs.freestanding.c))
+ (action (copy %{src} %{target})))

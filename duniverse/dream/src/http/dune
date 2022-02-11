@@ -1,0 +1,25 @@
+(library
+ (public_name dream.http)
+ (name dream__http)
+ (libraries
+  bigarray-compat
+  bigstringaf
+  digestif
+  dream.certificate
+  dream.cipher
+  dream-pure
+  dream.server
+  dream-httpaf.gluten
+  dream-httpaf.gluten-lwt-unix
+  dream-httpaf.h2
+  dream-httpaf.h2-lwt-unix
+  dream-httpaf.httpaf
+  dream-httpaf.httpaf-lwt-unix
+  lwt
+  lwt.unix
+  lwt_eio
+  eio_main
+  dream-httpaf.websocketaf
+ )
+ (preprocess (pps lwt_ppx))
+ (instrumentation (backend bisect_ppx)))

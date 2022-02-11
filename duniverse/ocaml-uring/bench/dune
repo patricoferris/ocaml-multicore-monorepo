@@ -1,3 +1,0 @@
-(executable
- (name main)
- (libraries uring bechamel bechamel-notty notty.unix))
