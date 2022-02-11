@@ -1,4 +1,5 @@
 (mdx 
- (packages eio_main)
+ ; Ah... a quick hack to workaround https://github.com/ocaml/dune/issues/3499
+ (packages eio_main mdx)
  (preludes docs/prelude.ml)
  (files README.md))
