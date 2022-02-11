@@ -175,15 +175,15 @@ pin-depends: [
   ]
   [
     "luv.0.5.11"
-    "git+https://github.com/patricoferris/luv#df19e79c935fb5d2ec205e097c8843fedd8712fb"
+    "git+https://github.com/patricoferris/luv#cec35fce60cc5479867e097f6748814c95d825ba"
   ]
   [
     "luv_unix.0.5.0"
-    "git+https://github.com/patricoferris/luv#df19e79c935fb5d2ec205e097c8843fedd8712fb"
+    "git+https://github.com/patricoferris/luv#cec35fce60cc5479867e097f6748814c95d825ba"
   ]
   [
     "lwt.5.5.0"
-    "git+https://github.com/patricoferris/lwt#120cdba460d22369b0307e560a10da2977d519bb"
+    "git+https://github.com/ocsigen/lwt#1154e976374586ab6ef80edb2634c24c9b3d55a0"
   ]
   [
     "lwt-dllist.1.0.1"
@@ -400,6 +400,10 @@ x-opam-monorepo-duniverse-dirs: [
     "stdlib-shims"
   ]
   [
+    "git+https://github.com/ocsigen/lwt#1154e976374586ab6ef80edb2634c24c9b3d55a0"
+    "lwt"
+  ]
+  [
     "https://github.com/ocurrent/ocaml-version/releases/download/v3.4.0/ocaml-version-v3.4.0.tbz"
     "ocaml-version"
   ]
@@ -424,12 +428,8 @@ x-opam-monorepo-duniverse-dirs: [
     "lib-findlib"
   ]
   [
-    "git+https://github.com/patricoferris/luv#df19e79c935fb5d2ec205e097c8843fedd8712fb"
+    "git+https://github.com/patricoferris/luv#cec35fce60cc5479867e097f6748814c95d825ba"
     "luv"
-  ]
-  [
-    "git+https://github.com/patricoferris/lwt#120cdba460d22369b0307e560a10da2977d519bb"
-    "lwt"
   ]
   [
     "git+https://github.com/patricoferris/ocplib-endian#43e8c64548a2da55035f9968e91f3238835cc126"
