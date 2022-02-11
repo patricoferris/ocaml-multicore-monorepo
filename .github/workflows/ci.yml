@@ -20,11 +20,11 @@ jobs:
     steps:
     - run: mkdir -p /home/opam/package
     - name: Cloning
-      run: git clone https://${{ secrets.GithubToken }}@github.com/$GITHUB_REPOSITORY . && git checkout ${{ github.event.pull_request.head.sha }}
+      run: git clone https://github.com/$GITHUB_REPOSITORY . && git checkout ${{ github.event.pull_request.head.sha }}
       working-directory: /home/opam/package
       if: ${{ github.event_name == 'pull_request' }}
     - name: ~~~ Cloning ~~~
-      run: git clone https://${{ secrets.GithubToken }}@github.com/$GITHUB_REPOSITORY .
+      run: git clone https://github.com/$GITHUB_REPOSITORY .
       working-directory: /home/opam/package
       if: ${{ github.event_name == 'push' }}
     - name: ~~~ Install dune ~~~
