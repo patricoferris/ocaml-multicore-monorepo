@@ -5,6 +5,23 @@ on:
   pull_request:
     branches: [ main ]
 jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Trunk Compiler
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ocaml-variants.5.0.0+trunk
+          opam-pin: false
+          opam-depext: false
+      - name: Get Dune
+        run: opam install dune.2.9.2
+      - name: Build and Test
+        run: |
+          opam exec -- dune build
+          opam exec -- dune runtest
   debian_500_trunk:
     runs-on: ubuntu-latest
     container:

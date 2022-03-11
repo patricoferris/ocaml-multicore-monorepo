@@ -56,7 +56,7 @@ let run_server ~sw socket =
 
 let test_address addr ~net sw =
   let server = Eio.Net.listen net ~sw ~reuse_addr:true ~backlog:5 addr in
-  Fibre.both
+  Fiber.both
     (fun () -> run_server ~sw server)
     (fun () ->
       run_client ~sw ~net ~addr;
@@ -80,7 +80,7 @@ Exception: Graceful_shutdown.
 Handling one connection on a Unix domain socket:
 
 ```ocaml
-# run (test_address (`Unix "/tmp/eio-test.sock"));;
+# run (test_address (`Unix "eio-test.sock"));;
 +Connecting to server...
 +Server accepted connection from client
 +Server received: "Hello from client"
@@ -108,11 +108,11 @@ Cancelling the read:
 # run @@ fun ~net sw ->
   let shutdown, set_shutdown = Promise.create () in
   let server = Eio.Net.listen net ~sw ~reuse_addr:true ~backlog:5 addr in
-  Fibre.both
+  Fiber.both
     (fun () ->
         Eio.Net.accept_sub server ~sw (fun ~sw flow _addr ->
           try
-            Fibre.both
+            Fiber.both
               (fun () -> raise (Promise.await shutdown))
               (fun () ->
                 let msg = read_all flow in
@@ -126,7 +126,7 @@ Cancelling the read:
       traceln "Connecting to server...";
       let flow = Eio.Net.connect ~sw net addr in
       traceln "Connection opened - cancelling server's read";
-      Fibre.yield ();
+      Fiber.yield ();
       Promise.resolve set_shutdown Graceful_shutdown;
       let msg = read_all flow in
       traceln "Client received: %S" msg
@@ -148,6 +148,32 @@ Calling accept when the switch is already off:
 Exception: Failure "Simulated error".
 ```
 
+Working with UDP and endpoints:
+
+```ocaml
+# run @@ fun ~net sw ->
+  let e1 = `Udp (Eio.Net.Ipaddr.V4.loopback, 8081) in
+  let e2 = `Udp (Eio.Net.Ipaddr.V4.loopback, 8082) in
+  let listening_socket = Eio.Net.datagram_socket ~sw net e2 in
+  Fiber.both
+    (fun () ->
+      let buf = Cstruct.create 20 in
+      traceln "Waiting to receive data on %a" Eio.Net.Sockaddr.pp e2;
+      let addr, recv = Eio.Net.recv listening_socket buf in
+      traceln "Received message from %a: %s"
+      Eio.Net.Sockaddr.pp addr
+      (Cstruct.(to_string (sub buf 0 recv)))
+    )
+    (fun () ->
+      let e = Eio.Net.datagram_socket ~sw net e1 in
+      traceln "Sending data from %a to %a" Eio.Net.Sockaddr.pp e1 Eio.Net.Sockaddr.pp e2;
+      Eio.Net.send e e2 (Cstruct.of_string "UDP Message"));;
++Waiting to receive data on udp:127.0.0.1:8082
++Sending data from udp:127.0.0.1:8081 to udp:127.0.0.1:8082
++Received message from udp:127.0.0.1:8081: UDP Message
+- : unit = ()
+```
+
 # Unix interop
 
 Extracting file descriptors from Eio objects:
@@ -157,7 +183,7 @@ Extracting file descriptors from Eio objects:
   let server = Eio.Net.listen net ~sw ~reuse_addr:true ~backlog:5 addr in
   traceln "Listening socket has Unix FD: %b" (Eio_unix.FD.peek server <> None);
   let have_client, have_server =
-    Fibre.pair
+    Fiber.pair
       (fun () -> 
          let flow = Eio.Net.connect ~sw net addr in
          (Eio_unix.FD.peek flow <> None)
@@ -226,5 +252,23 @@ Printing addresses with ports:
   show "::1" 8080;;
 +tcp:127.0.0.1:8080
 +tcp:[::1]:8080
+- : unit = ()
+```
+
+Wrapping a Unix FD as an Eio socket:
+
+```ocaml
+# Eio_main.run @@ fun _ ->
+  Switch.run @@ fun sw ->
+  let r, w = Unix.pipe () in
+  let source = (Eio_unix.FD.as_socket ~sw ~close_unix:true r :> Eio.Flow.source) in
+  let sink = (Eio_unix.FD.as_socket ~sw ~close_unix:true w :> Eio.Flow.sink) in
+  Fiber.both
+    (fun () -> Eio.Flow.copy_string "Hello\n!" sink)
+    (fun () ->
+       let b = Eio.Buf_read.of_flow source ~max_size:1000 in
+       traceln "Got: %S" (Eio.Buf_read.line b)
+    );;
++Got: "Hello"
 - : unit = ()
 ```

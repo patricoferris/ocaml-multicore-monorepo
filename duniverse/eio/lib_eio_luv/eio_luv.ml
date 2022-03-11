@@ -18,12 +18,11 @@ let src = Logs.Src.create "eio_luv" ~doc:"Eio backend using luv"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 open Eio.Std
-open Eio.Private.Effect
-open Eio.Private.Effect.Deep
+module Effect = Eio.Private.Effect
 
 module Ctf = Eio.Private.Ctf
 
-module Fibre_context = Eio.Private.Fibre_context
+module Fiber_context = Eio.Private.Fiber_context
 module Lf_queue = Eio_utils.Lf_queue
 
 (* SIGPIPE makes no sense in a modern application. *)
@@ -53,19 +52,19 @@ let or_raise_path path = function
 
 module Suspended = struct
   type 'a t = {
-    fibre : Eio.Private.Fibre_context.t;
-    k : ('a, unit) continuation;
+    fiber : Eio.Private.Fiber_context.t;
+    k : ('a, unit) Effect.Deep.continuation;
   }
 
-  let tid t = Eio.Private.Fibre_context.tid t.fibre
+  let tid t = Eio.Private.Fiber_context.tid t.fiber
 
   let continue t v =
     Ctf.note_switch (tid t);
-    continue t.k v
+    Effect.Deep.continue t.k v
 
   let discontinue t ex =
     Ctf.note_switch (tid t);
-    discontinue t.k ex
+    Effect.Deep.discontinue t.k ex
 
   let continue_result t = function
     | Ok x -> continue t x
@@ -78,13 +77,13 @@ type t = {
   run_q : (unit -> unit) Lf_queue.t;
 }
 
-type _ eff += Await : (Luv.Loop.t -> Eio.Private.Fibre_context.t -> ('a -> unit) -> unit) -> 'a eff
+type _ Effect.t += Await : (Luv.Loop.t -> Eio.Private.Fiber_context.t -> ('a -> unit) -> unit) -> 'a Effect.t
 
-type _ eff += Enter : (t -> 'a Suspended.t -> unit) -> 'a eff
-type _ eff += Enter_unchecked : (t -> 'a Suspended.t -> unit) -> 'a eff
+type _ Effect.t += Enter : (t -> 'a Suspended.t -> unit) -> 'a Effect.t
+type _ Effect.t += Enter_unchecked : (t -> 'a Suspended.t -> unit) -> 'a Effect.t
 
-let enter fn = perform (Enter fn)
-let enter_unchecked fn = perform (Enter_unchecked fn)
+let enter fn = Effect.perform (Enter fn)
+let enter_unchecked fn = Effect.perform (Enter_unchecked fn)
 
 let enqueue_thread t k v =
   Lf_queue.push t.run_q (fun () -> Suspended.continue k v);
@@ -114,19 +113,19 @@ module Low_level = struct
   let or_raise = or_raise
 
   let await_exn fn =
-    perform (Await fn) |> or_raise
+    Effect.perform (Await fn) |> or_raise
 
   let await_with_cancel ~request fn =
     enter (fun st k ->
         let cancel_reason = ref None in
-        Eio.Private.Fibre_context.set_cancel_fn k.fibre (fun ex ->
+        Eio.Private.Fiber_context.set_cancel_fn k.fiber (fun ex ->
             cancel_reason := Some ex;
             match Luv.Request.cancel request with
             | Ok () -> ()
             | Error e -> Log.debug (fun f -> f "Cancel failed: %s" (Luv.Error.strerror e))
           );
         fn st.loop (fun v ->
-            if Eio.Private.Fibre_context.clear_cancel_fn k.fibre then (
+            if Eio.Private.Fiber_context.clear_cancel_fn k.fiber then (
               enqueue_thread st k v
             ) else (
               (* Cancellations always come from the same domain, so we can be sure
@@ -139,6 +138,7 @@ module Low_level = struct
   module Handle = struct
     type 'a t = {
       mutable release_hook : Eio.Switch.hook;        (* Use this on close to remove switch's [on_release] hook. *)
+      close_unix : bool;
       mutable fd : [`Open of 'a Luv.Handle.t | `Closed]
     }
 
@@ -155,19 +155,21 @@ module Low_level = struct
       let fd = get "close" t in
       t.fd <- `Closed;
       Eio.Switch.remove_hook t.release_hook;
-      enter_unchecked @@ fun t k ->
-      Luv.Handle.close fd (enqueue_thread t k)
+      if t.close_unix then (
+        enter_unchecked @@ fun t k ->
+        Luv.Handle.close fd (enqueue_thread t k)
+      )
 
     let ensure_closed t =
       if is_open t then close t
 
     let to_luv x = get "to_luv" x
 
-    let of_luv_no_hook fd =
-      { fd = `Open fd; release_hook = Eio.Switch.null_hook }
+    let of_luv_no_hook ~close_unix fd =
+      { fd = `Open fd; release_hook = Eio.Switch.null_hook; close_unix }
 
-    let of_luv ~sw fd =
-      let t = of_luv_no_hook fd in
+    let of_luv ?(close_unix=true) ~sw fd =
+      let t = of_luv_no_hook ~close_unix fd in
       t.release_hook <- Switch.on_release_cancellable sw (fun () -> ensure_closed t);
       t
 
@@ -187,6 +189,7 @@ module Low_level = struct
   module File = struct
     type t = {
       mutable release_hook : Eio.Switch.hook;        (* Use this on close to remove switch's [on_release] hook. *)
+      close_unix : bool;
       mutable fd : [`Open of Luv.File.t | `Closed]
     }
 
@@ -203,18 +206,18 @@ module Low_level = struct
       let fd = get "close" t in
       t.fd <- `Closed;
       Eio.Switch.remove_hook t.release_hook;
-      await_exn (fun loop _fibre -> Luv.File.close ~loop fd)
+      await_exn (fun loop _fiber -> Luv.File.close ~loop fd)
 
     let ensure_closed t =
       if is_open t then close t
 
     let to_luv = get "to_luv"
 
-    let of_luv_no_hook fd =
-      { fd = `Open fd; release_hook = Eio.Switch.null_hook }
+    let of_luv_no_hook ~close_unix fd =
+      { fd = `Open fd; release_hook = Eio.Switch.null_hook; close_unix }
 
-    let of_luv ~sw fd =
-      let t = of_luv_no_hook fd in
+    let of_luv ?(close_unix=true) ~sw fd =
+      let t = of_luv_no_hook ~close_unix fd in
       t.release_hook <- Switch.on_release_cancellable sw (fun () -> ensure_closed t);
       t
 
@@ -267,13 +270,13 @@ module Low_level = struct
 
     let rec read_into (sock:'a t) buf =
       let r = enter (fun t k ->
-          Fibre_context.set_cancel_fn k.fibre (fun ex ->
+          Fiber_context.set_cancel_fn k.fiber (fun ex ->
               Luv.Stream.read_stop (Handle.get "read_into:cancel" sock) |> or_raise;
               enqueue_failed_thread t k ex
             );
           Luv.Stream.read_start (Handle.get "read_start" sock) ~allocate:(fun _ -> buf) (fun r ->
               Luv.Stream.read_stop (Handle.get "read_stop" sock) |> or_raise;
-              if Fibre_context.clear_cancel_fn k.fibre then enqueue_thread t k r
+              if Fiber_context.clear_cancel_fn k.fiber then enqueue_thread t k r
             )
         ) in
       match r with
@@ -303,18 +306,21 @@ module Low_level = struct
       | bufs -> write t bufs
 
     let to_unix_opt = Handle.to_unix_opt
+
+    let of_unix fd =
+      Luv_unix.Os_fd.Socket.from_unix fd |> or_raise
   end
 
   module Poll = struct
     let await_readable t (k:unit Suspended.t) fd =
       let poll = Luv.Poll.init ~loop:t.loop (Obj.magic fd) |> or_raise in
-      Fibre_context.set_cancel_fn k.fibre (fun ex ->
+      Fiber_context.set_cancel_fn k.fiber (fun ex ->
           Luv.Poll.stop poll |> or_raise;
           enqueue_failed_thread t k ex
         );
       Luv.Poll.start poll [`READABLE;] (fun r ->
           Luv.Poll.stop poll |> or_raise;
-          if Fibre_context.clear_cancel_fn k.fibre then
+          if Fiber_context.clear_cancel_fn k.fiber then
             match r with
             | Ok (_ : Luv.Poll.Event.t list) -> enqueue_thread t k ()
             | Error e -> enqueue_failed_thread t k (Luv_error e)
@@ -322,13 +328,13 @@ module Low_level = struct
 
     let await_writable t (k:unit Suspended.t) fd =
       let poll = Luv.Poll.init ~loop:t.loop (Obj.magic fd) |> or_raise in
-      Fibre_context.set_cancel_fn k.fibre (fun ex ->
+      Fiber_context.set_cancel_fn k.fiber (fun ex ->
           Luv.Poll.stop poll |> or_raise;
           enqueue_failed_thread t k ex
         );
       Luv.Poll.start poll [`WRITABLE;] (fun r ->
           Luv.Poll.stop poll |> or_raise;
-          if Fibre_context.clear_cancel_fn k.fibre then
+          if Fiber_context.clear_cancel_fn k.fiber then
             match r with
             | Ok (_ : Luv.Poll.Event.t list) -> enqueue_thread t k ()
             | Error e -> enqueue_failed_thread t k (Luv_error e)
@@ -339,13 +345,13 @@ module Low_level = struct
     let delay = 1000. *. (due -. Unix.gettimeofday ()) |> ceil |> truncate |> max 0 in
     enter @@ fun st k ->
     let timer = Luv.Timer.init ~loop:st.loop () |> or_raise in
-    Fibre_context.set_cancel_fn k.fibre (fun ex ->
+    Fiber_context.set_cancel_fn k.fiber (fun ex ->
         Luv.Timer.stop timer |> or_raise;
         Luv.Handle.close timer (fun () -> ());
         enqueue_failed_thread st k ex
       );
     Luv.Timer.start timer delay (fun () ->
-        if Fibre_context.clear_cancel_fn k.fibre then enqueue_thread st k ()
+        if Fiber_context.clear_cancel_fn k.fiber then enqueue_thread st k ()
       ) |> or_raise
 end
 
@@ -417,11 +423,11 @@ let socket sock = object
     Handle.close sock
 
   method shutdown = function
-    | `Send -> await_exn (fun _loop _fibre -> Luv.Stream.shutdown (Handle.get "shutdown" sock))
+    | `Send -> await_exn (fun _loop _fiber -> Luv.Stream.shutdown (Handle.get "shutdown" sock))
     | `Receive -> failwith "shutdown receive not supported"
     | `All ->
       Log.warn (fun f -> f "shutdown receive not supported");
-      await_exn (fun _loop _fibre -> Luv.Stream.shutdown (Handle.get "shutdown" sock))
+      await_exn (fun _loop _fiber -> Luv.Stream.shutdown (Handle.get "shutdown" sock))
 end
 
 class virtual ['a] listening_socket ~backlog sock = object (self)
@@ -434,13 +440,13 @@ class virtual ['a] listening_socket ~backlog sock = object (self)
   val ready = Eio.Semaphore.make 0
 
   method private virtual make_client : 'a Luv.Stream.t
-  method private virtual get_client_addr : 'a Stream.t -> Eio.Net.Sockaddr.t
+  method private virtual get_client_addr : 'a Stream.t -> Eio.Net.Sockaddr.stream
 
   method close = Handle.close sock
 
   method accept ~sw =
     Eio.Semaphore.acquire ready;
-    let client = self#make_client |> Handle.of_luv_no_hook in
+    let client = self#make_client |> Handle.of_luv_no_hook ~close_unix:true in
     match Luv.Stream.accept ~server:(Handle.get "accept" sock) ~client:(Handle.get "accept" client) with
     | Error e ->
       Handle.close client;
@@ -474,6 +480,49 @@ let luv_ip_addr_to_eio addr =
   let host = Luv.Sockaddr.to_string addr |> Option.get in
   let port = Luv.Sockaddr.port addr |> Option.get in
   (Eio_unix.Ipaddr.of_unix (Unix.inet_addr_of_string host), port)
+
+module Udp = struct
+  type 'a t = [`UDP] Handle.t
+
+  (* When the sender address in the callback of [recv_start] is [None], this usually indicates
+     EAGAIN according to the luv documentation which can be ignored. Libuv calls the callback 
+     in case C programs wish to handle the allocated buffer in some way. *)
+  let recv (sock:'a t) buf =
+    let r = enter (fun t k ->
+        Fiber_context.set_cancel_fn k.fiber (fun ex ->
+            Luv.UDP.recv_stop (Handle.get "recv_into:cancel" sock) |> or_raise;
+            enqueue_failed_thread t k ex
+          );
+        Luv.UDP.recv_start (Handle.get "recv_start" sock) ~allocate:(fun _ -> buf) (function
+          | Ok (_, None, _) -> ()
+          | Ok (buf, Some addr, flags) ->
+            Luv.UDP.recv_stop (Handle.get "recv_stop" sock) |> or_raise;
+            if Fiber_context.clear_cancel_fn k.fiber then enqueue_thread t k (Ok (buf, addr, flags))
+          | Error _ as err ->
+            Luv.UDP.recv_stop (Handle.get "recv_stop" sock) |> or_raise;
+            if Fiber_context.clear_cancel_fn k.fiber then enqueue_thread t k err
+          )
+      ) in
+    match r with
+    | Ok (buf', sockaddr, _recv_flags) ->
+      `Udp (luv_ip_addr_to_eio sockaddr), Luv.Buffer.size buf'
+    | Error (`ECONNRESET as e) -> raise (Eio.Net.Connection_reset (Luv_error e))
+    | Error x -> raise (Luv_error x)
+
+  let send t buf = function 
+  | `Udp (host, port) ->
+    let bufs = [ Cstruct.to_bigarray buf ] in
+    await_exn (fun _loop _fiber -> Luv.UDP.send (Handle.get "send" t) bufs (luv_addr_of_eio host port))
+end
+
+let udp_socket endp = object
+  inherit Eio.Net.datagram_socket
+
+  method send sockaddr bufs = Udp.send endp bufs sockaddr 
+  method recv buf = 
+    let buf = Cstruct.to_bigarray buf in
+    Udp.recv endp buf
+end
 
 let listening_ip_socket ~backlog sock = object
   inherit [[ `TCP ]] listening_socket ~backlog sock
@@ -523,12 +572,21 @@ let net = object
     | `Tcp (host, port) ->
       let sock = Luv.TCP.init ~loop:(get_loop ()) () |> or_raise |> Handle.of_luv ~sw in
       let addr = luv_addr_of_eio host port in
-      await_exn (fun _loop _fibre -> Luv.TCP.connect (Handle.get "connect" sock) addr);
+      await_exn (fun _loop _fiber -> Luv.TCP.connect (Handle.get "connect" sock) addr);
       socket sock
     | `Unix path ->
       let sock = Luv.Pipe.init ~loop:(get_loop ()) () |> or_raise |> Handle.of_luv ~sw in
-      await_exn (fun _loop _fibre -> Luv.Pipe.connect (Handle.get "connect" sock) path);
+      await_exn (fun _loop _fiber -> Luv.Pipe.connect (Handle.get "connect" sock) path);
       socket sock
+
+  method datagram_socket ~sw = function
+    | `Udp (host, port) -> 
+      let domain = Eio.Net.Ipaddr.fold ~v4:(fun _ -> `INET) ~v6:(fun _ -> `INET6) host in
+      let sock = Luv.UDP.init ~domain ~loop:(get_loop ()) () |> or_raise in
+      let dg_sock = Handle.of_luv ~sw sock in
+      let addr = luv_addr_of_eio host port in
+      Luv.UDP.bind sock addr |> or_raise;
+      udp_socket dg_sock
 end
 
 let secure_random =
@@ -675,9 +733,9 @@ let cwd = object
 end
 
 let stdenv ~run_event_loop =
-  let stdin = lazy (source (File.of_luv_no_hook Luv.File.stdin)) in
-  let stdout = lazy (sink (File.of_luv_no_hook Luv.File.stdout)) in
-  let stderr = lazy (sink (File.of_luv_no_hook Luv.File.stderr)) in
+  let stdin = lazy (source (File.of_luv_no_hook Luv.File.stdin ~close_unix:true)) in
+  let stdout = lazy (sink (File.of_luv_no_hook Luv.File.stdout ~close_unix:true)) in
+  let stderr = lazy (sink (File.of_luv_no_hook Luv.File.stderr ~close_unix:true)) in
   object (_ : stdenv)
     method stdin  = Lazy.force stdin
     method stdout = Lazy.force stdout
@@ -702,64 +760,71 @@ let rec run main =
   let async = Luv.Async.init ~loop (fun _async -> wakeup run_q) |> or_raise in
   let st = { loop; async; run_q } in
   let stdenv = stdenv ~run_event_loop:run in
-  let rec fork ~new_fibre:fibre fn =
-    Ctf.note_switch (Fibre_context.tid fibre);
+  let rec fork ~new_fiber:fiber fn =
+    Ctf.note_switch (Fiber_context.tid fiber);
+    let open Effect.Deep in
     match_with fn ()
-    { retc = (fun () -> Fibre_context.destroy fibre);
-      exnc = (fun e -> Fibre_context.destroy fibre; raise e);
-      effc = fun (type a) (e : a eff) ->
+    { retc = (fun () -> Fiber_context.destroy fiber);
+      exnc = (fun e -> Fiber_context.destroy fiber; raise e);
+      effc = fun (type a) (e : a Effect.t) ->
         match e with
         | Await fn ->
           Some (fun k -> 
-            let k = { Suspended.k; fibre } in
-            fn loop fibre (enqueue_thread st k))
+            let k = { Suspended.k; fiber } in
+            fn loop fiber (enqueue_thread st k))
         | Eio.Private.Effects.Trace ->
           Some (fun k -> continue k Eio_utils.Trace.default_traceln)
-        | Eio.Private.Effects.Fork (new_fibre, f) ->
+        | Eio.Private.Effects.Fork (new_fiber, f) ->
           Some (fun k -> 
-            let k = { Suspended.k; fibre } in
-            enqueue_at_head st k ();
-            fork ~new_fibre (fun () ->
-                match f () with
-                | () ->
-                  Ctf.note_resolved (Fibre_context.tid new_fibre) ~ex:None
-                | exception ex ->
-                  Ctf.note_resolved (Fibre_context.tid new_fibre) ~ex:(Some ex)
-              ))
-        | Eio.Private.Effects.Get_context -> Some (fun k -> continue k fibre)
+              let k = { Suspended.k; fiber } in
+              enqueue_at_head st k ();
+              fork ~new_fiber f
+            )
+        | Eio.Private.Effects.Get_context -> Some (fun k -> continue k fiber)
         | Enter_unchecked fn -> Some (fun k ->
-            fn st { Suspended.k; fibre }
+            fn st { Suspended.k; fiber }
           )
         | Enter fn -> Some (fun k ->
-            match Fibre_context.get_error fibre with
+            match Fiber_context.get_error fiber with
             | Some e -> discontinue k e
-            | None -> fn st { Suspended.k; fibre }
+            | None -> fn st { Suspended.k; fiber }
           )
         | Eio.Private.Effects.Suspend fn ->
           Some (fun k -> 
-              let k = { Suspended.k; fibre } in
-              fn fibre (enqueue_result_thread st k)
+              let k = { Suspended.k; fiber } in
+              fn fiber (enqueue_result_thread st k)
             )
         | Eio_unix.Private.Await_readable fd -> Some (fun k ->
-            match Fibre_context.get_error fibre with
+            match Fiber_context.get_error fiber with
             | Some e -> discontinue k e
             | None ->
-              let k = { Suspended.k; fibre } in
+              let k = { Suspended.k; fiber } in
               Poll.await_readable st k fd
           )
         | Eio_unix.Private.Await_writable fd -> Some (fun k ->
-            match Fibre_context.get_error fibre with
+            match Fiber_context.get_error fiber with
             | Some e -> discontinue k e
             | None ->
-              let k = { Suspended.k; fibre } in
+              let k = { Suspended.k; fiber } in
               Poll.await_writable st k fd
+          )
+        | Eio_unix.Private.Get_system_clock -> Some (fun k -> continue k clock)
+        | Eio_unix.Private.Socket_of_fd (sw, close_unix, fd) -> Some (fun k ->
+            try
+              let fd = Low_level.Stream.of_unix fd in
+              let sock = Luv.TCP.init ~loop () |> or_raise in
+              let handle = Handle.of_luv ~sw ~close_unix sock in
+              Luv.TCP.open_ sock fd |> or_raise;
+              continue k (socket handle :> < Eio.Flow.two_way; Eio.Flow.close >)
+            with Luv_error _ as ex ->
+              discontinue k ex
           )
         | _ -> None
     }
   in
   let main_status = ref `Running in
-  let new_fibre = Fibre_context.make_root () in
-  fork ~new_fibre (fun () ->
+  let new_fiber = Fiber_context.make_root () in
+  fork ~new_fiber (fun () ->
       begin match main stdenv with
         | () -> main_status := `Done
         | exception ex -> main_status := `Ex (ex, Printexc.get_raw_backtrace ())

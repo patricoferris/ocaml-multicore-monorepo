@@ -3,7 +3,7 @@
     Eio provides support for concurrency (juggling many tasks) and
     parallelism (using multiple CPU cores for performance).
 
-    It provides facilities for creating and coordinating fibres (light-weight
+    It provides facilities for creating and coordinating fibers (light-weight
     threads) and domains (for parallel processing), as well as interfaces for
     interacting with resources provided by the operating system.
 
@@ -15,9 +15,9 @@
 
 (** {1 Concurrency primitives} *)
 
-(** Grouping fibres and other resources so they can be turned off together. *)
+(** Grouping fibers and other resources so they can be turned off together. *)
 module Switch : sig
-  (** Many resources in Eio (such as fibres and file handles) require a switch to
+  (** Many resources in Eio (such as fibers and file handles) require a switch to
       be provided when they are created. The resource cannot outlive its switch.
 
       If a function wants to create such resources, and was not passed a switch
@@ -29,8 +29,10 @@ module Switch : sig
       switch by its caller.
 
       Each switch includes its own {!Cancel.t} context.
-      Calling {!fail} cancels all fibres attached to the switch and, once they
+      Calling {!fail} cancels all fibers attached to the switch and, once they
       have exited, reports the error.
+
+      Note: this concept is known as a "nursery" or "bundle" in some other systems.
 
       Example:
       {[
@@ -43,12 +45,14 @@ module Switch : sig
   *)
 
   type t
-  (** A switch contains a group of fibres and other resources (such as open file handles). *)
+  (** A switch contains a group of fibers and other resources (such as open file handles). *)
+
+  (** {2 Switch creation} *)
 
   val run : (t -> 'a) -> 'a
   (** [run fn] runs [fn] with a fresh switch (initially on).
 
-      When [fn] finishes, [run] waits for all fibres registered with the switch to finish,
+      When [fn] finishes, [run] waits for all fibers registered with the switch to finish,
       and then releases all attached resources.
 
       If {!fail} is called, [run] will re-raise the exception (after everything is cleaned up).
@@ -57,9 +61,11 @@ module Switch : sig
   val run_protected : (t -> 'a) -> 'a
   (** [run_protected fn] is like [run] but ignores cancellation requests from the parent context. *)
 
+  (** {2 Cancellation and failure} *)
+
   val check : t -> unit
   (** [check t] checks that [t] is still on.
-      @raise Cancel.Cancelled If the switch is off. *)
+      @raise Cancel.Cancelled If the switch has been cancelled. *)
 
   val get_error : t -> exn option
   (** [get_error t] is like [check t] except that it returns the exception instead of raising it.
@@ -68,16 +74,26 @@ module Switch : sig
   val fail : ?bt:Printexc.raw_backtrace -> t -> exn -> unit
   (** [fail t ex] adds [ex] to [t]'s set of failures and
       ensures that the switch's cancellation context is cancelled,
-      to encourage all fibres to exit as soon as possible.
+      to encourage all fibers to exit as soon as possible.
 
       [fail] returns immediately, without waiting for the shutdown actions to complete.
       The exception will be raised later by {!run}, and [run]'s caller is responsible for handling it.
       {!Exn.combine} is used to avoid duplicate or unnecessary exceptions.
       @param bt A backtrace to attach to [ex] *)
 
+  (** {2 Cleaning up resources}
+
+      It is possible to attach clean-up hooks to a switch.
+      Once all fibres within the switch have finished, these hooks are called.
+      For example, when a file is opened it will register a release hook to close it.
+
+      Functions that create such resources will take a switch argument
+      and call these functions for you.
+      You usually don't need to call these directly. *)
+
   val on_release : t -> (unit -> unit) -> unit
   (** [on_release t fn] registers [fn] to be called once [t]'s main function has returned
-      and all fibres have finished.
+      and all fibers have finished.
 
       If [fn] raises an exception, it is passed to {!fail}.
 
@@ -87,17 +103,23 @@ module Switch : sig
       and the switch may have been cancelled by the time it runs. *)
 
   type hook
-  (** A handle for removing a callback. *)
+  (** A handle for removing a clean-up callback. *)
 
   val null_hook : hook
   (** A dummy hook. Removing it does nothing. *)
 
   val on_release_cancellable : t -> (unit -> unit) -> hook
-  (** Like [on_release], but the handler can be removed later. *)
+  (** Like [on_release], but the handler can be removed later.
+
+      For example, opening a file will call [on_release_cancellable] to ensure the file is closed later.
+      However, if the file is manually closed before that, it will use {!remove_hook} to remove the hook,
+      which is no longer needed. *)
 
   val remove_hook : hook -> unit
   (** [remove_hook h] removes a previously-added hook.
       If the hook has already been removed, this does nothing. *)
+
+  (** {2 Debugging} *)
 
   val dump : t Fmt.t
   (** Dump out details of the switch's state for debugging. *)
@@ -114,7 +136,7 @@ module Promise : sig
       Example:
       {[
         let promise, resolver = Promise.create () in
-        Fibre.both
+        Fiber.both
           (fun () -> traceln "Got %d" (Promise.await promise))
           (fun () -> Promise.resolve resolver 42)
       ]} *)
@@ -164,11 +186,11 @@ module Promise : sig
   (** [await_exn t] is like [await t], but if the result is [Error ex] then it raises [ex]. *)
 end
 
-(** A fibre is a light-weight thread. *)
-module Fibre : sig
-  (** Within a domain, only one fibre can be running at a time.
-      A fibre runs until it performs an IO operation (directly or indirectly).
-      At that point, it may be suspended and the next fibre on the run queue runs. *)
+(** A fiber is a light-weight thread. *)
+module Fiber : sig
+  (** Within a domain, only one fiber can be running at a time.
+      A fiber runs until it performs an IO operation (directly or indirectly).
+      At that point, it may be suspended and the next fiber on the run queue runs. *)
 
   val both : (unit -> unit) -> (unit -> unit) -> unit
   (** [both f g] runs [f ()] and [g ()] concurrently.
@@ -181,15 +203,15 @@ module Fibre : sig
       [f] runs immediately, without switching to any other thread.
       [g] is inserted at the head of the run-queue, so it runs next even if other threads are already enqueued.
       You can get other scheduling orders by adding calls to {!yield} in various places.
-      e.g. to append both fibres to the end of the run-queue, yield immediately before calling [both].
+      e.g. to append both fibers to the end of the run-queue, yield immediately before calling [both].
 
-      If both fibres fail, {!Exn.combine} is used to combine the exceptions. *)
+      If both fibers fail, {!Exn.combine} is used to combine the exceptions. *)
 
   val pair : (unit -> 'a) -> (unit -> 'b) -> 'a * 'b
   (** [pair f g] is like [both], but returns the two results. *)
 
   val all : (unit -> unit) list -> unit
-  (** [all fs] is like [both], but for any number of fibres.
+  (** [all fs] is like [both], but for any number of fibers.
       [all []] returns immediately. *)
 
   val first : (unit -> 'a) -> (unit -> 'a) -> 'a
@@ -200,10 +222,10 @@ module Fibre : sig
 
       As with [both], [f] runs immediately and [g] is scheduled next, ahead of any other queued work.
 
-      If both fibres fail, {!Exn.combine} is used to combine the exceptions. *)
+      If both fibers fail, {!Exn.combine} is used to combine the exceptions. *)
 
   val any : (unit -> 'a) list -> 'a
-  (** [any fs] is like [first], but for any number of fibres.
+  (** [any fs] is like [first], but for any number of fibers.
 
       [any []] just waits forever (or until cancelled). *)
 
@@ -212,24 +234,24 @@ module Fibre : sig
       @raise Cancel.Cancelled *)
 
   val fork : sw:Switch.t -> (unit -> unit) -> unit
-  (** [fork ~sw fn] runs [fn ()] in a new fibre, but does not wait for it to complete.
+  (** [fork ~sw fn] runs [fn ()] in a new fiber, but does not wait for it to complete.
 
-      The new fibre is attached to [sw] (which can't finish until the fibre ends).
+      The new fiber is attached to [sw] (which can't finish until the fiber ends).
 
-      The new fibre inherits [sw]'s cancellation context.
-      If the fibre raises an exception, [fail sw] is called.
+      The new fiber inherits [sw]'s cancellation context.
+      If the fiber raises an exception, [Switch.fail sw] is called.
       If [sw] is already off then [fn] fails immediately, but the calling thread continues.
 
-      [fn] runs immediately, without switching to any other fibre first.
-      The calling fibre is placed at the head of the run queue, ahead of any previous items. *)
+      [fn] runs immediately, without switching to any other fiber first.
+      The calling fiber is placed at the head of the run queue, ahead of any previous items. *)
 
   val fork_sub : sw:Switch.t -> on_error:(exn -> unit) -> (Switch.t -> unit) -> unit
-  (** [fork_sub ~sw ~on_error fn] is like [fork], but it creates a new sub-switch for the fibre.
+  (** [fork_sub ~sw ~on_error fn] is like [fork], but it creates a new sub-switch for the fiber.
 
       This means that you can cancel the child switch without cancelling the parent.
       This is a convenience function for running {!Switch.run} inside a {!fork}.
 
-      @param on_error This is called if the fibre raises an exception.
+      @param on_error This is called if the fiber raises an exception.
                       If it raises in turn, the parent switch is failed.
                       It is not called if the parent [sw] itself is cancelled. *)
 
@@ -240,10 +262,10 @@ module Fibre : sig
     (Switch.t -> 'a -> unit) ->
     unit
   (** [fork_on_accept ~sw accept handle ~on_handler_error] creates a new sub-switch [t].
-      It runs [accept t] in the current fibre and, on success, runs [handle t result] in a new fibre.
+      It runs [accept t] in the current fiber and, on success, runs [handle t result] in a new fiber.
       It is useful for e.g. accepting network connections,
       where we need to provide a switch for the new client socket before we have forked,
-      but then move it to a child fibre later.
+      but then move it to a child fiber later.
 
       If [accept] raises an exception then the effect is the same as [Switch.run accept].
       If [handle] raises an exception, it is passed to [on_handler_error].
@@ -251,15 +273,15 @@ module Fibre : sig
       [on_handler_error] is not called if the parent [sw] is itself cancelled. *)
 
   val fork_promise : sw:Switch.t -> (unit -> 'a) -> 'a Promise.or_exn
-  (** [fork_promise ~sw fn] schedules [fn ()] to run in a new fibre and returns a promise for its result.
+  (** [fork_promise ~sw fn] schedules [fn ()] to run in a new fiber and returns a promise for its result.
 
       This is just a convenience wrapper around {!fork}.
-      If [fn] raises an exception then the promise is broken, but [sw] is not turned off. *)
+      If [fn] raises an exception then the promise is resolved to the error, but [sw] is not failed. *)
 
   val check : unit -> unit
-  (** [check ()] checks that the fibre's context hasn't been cancelled.
+  (** [check ()] checks that the fiber's context hasn't been cancelled.
       Many operations automatically check this before starting.
-      @raise Cancel.Cancelled if the fibre's context has been cancelled. *)
+      @raise Cancel.Cancelled if the fiber's context has been cancelled. *)
 
   val yield : unit -> unit
   (** [yield ()] asks the scheduler to switch to the next runnable task.
@@ -267,11 +289,15 @@ module Fibre : sig
       Automatically calls {!check} just before resuming. *)
 end
 
+(**/**)
+module Fibre = Fiber [@@deprecated "Now spelt Fiber"]
+(**/**)
+
 (** A counting semaphore. *)
 module Semaphore : sig
   (** The API is based on OCaml's [Semaphore.Counting].
 
-      The difference is that when waiting for the semaphore this will switch to the next runnable fibre,
+      The difference is that when waiting for the semaphore this will switch to the next runnable fiber,
       whereas the stdlib one will block the whole domain.
 
       Semaphores are thread-safe and so can be shared between domains and used
@@ -287,11 +313,11 @@ module Semaphore : sig
 
   val release : t -> unit
   (** [release t] increments the value of semaphore [t].
-      If other fibres are waiting on [t], the one that has been waiting the longest is resumed.
+      If other fibers are waiting on [t], the one that has been waiting the longest is resumed.
       @raise Sys_error if the value of the semaphore would overflow [max_int] *)
 
   val acquire : t -> unit
-  (** [acquire t] blocks the calling fibre until the value of semaphore [t]
+  (** [acquire t] blocks the calling fiber until the value of semaphore [t]
       is not zero, then atomically decrements the value of [t] and returns. *)
 
   val get_value : t -> int
@@ -349,30 +375,30 @@ module Stream : sig
   (** [is_empty t] is [length t = 0]. *)
 end
 
-(** Cancelling fibres. *)
+(** Cancelling fibers. *)
 module Cancel : sig
   (** This is the low-level interface to cancellation.
       Every {!Switch} includes a cancellation context and most users will just use that API instead.
 
-      Each domain has a tree of cancellation contexts, and every fibre is registered with one context.
-      A fibre can switch to a different context (e.g. by calling {!sub}).
-      When a context is cancelled, all registered fibres have their current cancellation function (if any)
+      Each domain has a tree of cancellation contexts, and every fiber is registered with one context.
+      A fiber can switch to a different context (e.g. by calling {!sub}).
+      When a context is cancelled, all registered fibers have their current cancellation function (if any)
       called and removed. Child contexts are cancelled too, recursively, unless marked as protected.
 
       Many operations also check that the current context hasn't been cancelled,
-      so if a fibre is performing a non-cancellable operation it will still get cancelled soon afterwards.
+      so if a fiber is performing a non-cancellable operation it will still get cancelled soon afterwards.
       This check is typically done when starting an operation, not at the end.
       If an operation is cancelled after succeeding, but while still waiting on the run queue,
       it will still return the operation's result.
-      A notable exception is {!Fibre.yield}, which checks at the end.
-      You can also use {!Fibre.check} to check manually.
+      A notable exception is {!Fiber.yield}, which checks at the end.
+      You can also use {!Fiber.check} to check manually.
 
-      Whether a fibre is cancelled through a cancellation function or by checking its context,
+      Whether a fiber is cancelled through a cancellation function or by checking its context,
       it will receive a {!Cancelled} exception.
       It is possible the exception will get lost (if something catches it and forgets to re-raise).
       It is also possible to get this exception even when not cancelled, for example by awaiting
-      a promise which another fibre has resolved to a cancelled exception.
-      When in doubt, call {!Fibre.check ()} to find out if your fibre is really cancelled.
+      a promise which another fiber has resolved to a cancelled exception.
+      When in doubt, use [Fiber.check ()] to find out if your fiber is really cancelled.
       Ideally this should be done any time you have caught an exception and are planning to ignore it,
       although if you forget then the next IO operation will typically abort anyway.
 
@@ -381,7 +407,7 @@ module Cancel : sig
       For example, a network connection should simply be closed,
       without attempting to send a goodbye message.
 
-      The purpose of the cancellation system is to stop fibres quickly, not to report errors.
+      The purpose of the cancellation system is to stop fibers quickly, not to report errors.
       Use {!Switch.fail} instead to record an error. *)
 
   type t
@@ -422,7 +448,7 @@ module Cancel : sig
 
   val cancel : t -> exn -> unit
   (** [cancel t ex] marks [t] and its child contexts as cancelled, recursively,
-      and calls all registered fibres' cancellation functions, passing [Cancelled ex] as the argument.
+      and calls all registered fibers' cancellation functions, passing [Cancelled ex] as the argument.
 
       All cancellation functions are run, even if some of them raise exceptions.
 
@@ -440,7 +466,10 @@ end
 (** Commonly used standard features. This module is intended to be [open]ed. *)
 module Std : sig
   module Promise = Promise
-  module Fibre = Fibre
+  module Fiber = Fiber
+  (**/**)
+  module Fibre = Fiber [@@deprecated "Now spelt Fiber"]
+  (**/**)
   module Switch = Switch
 
   val traceln :
@@ -895,12 +924,21 @@ module Net : sig
 
   (** Network addresses. *)
   module Sockaddr : sig
-    type t = [
+    type stream = [
       | `Unix of string
       | `Tcp of Ipaddr.v4v6 * int
     ]
+    (** Socket addresses that we can build a {! Flow.two_way} for i.e. stream-oriented
+        protocols. *)
 
-    val pp : Format.formatter -> t -> unit
+    type datagram = [
+      | `Udp of Ipaddr.v4v6 * int
+    ]
+    (** Socket addresses that are message-oriented. *)
+
+    type t = [ stream | datagram ]
+
+    val pp : Format.formatter -> [< t] -> unit
   end
 
   (** {2 Provider Interfaces} *)
@@ -908,24 +946,30 @@ module Net : sig
   class virtual listening_socket : object
     inherit Generic.t
     method virtual close : unit
-    method virtual accept : sw:Switch.t -> <Flow.two_way; Flow.close> * Sockaddr.t
+    method virtual accept : sw:Switch.t -> <Flow.two_way; Flow.close> * Sockaddr.stream
+  end
+
+  class virtual datagram_socket : object
+    method virtual send : Sockaddr.datagram -> Cstruct.t -> unit
+    method virtual recv : Cstruct.t -> Sockaddr.datagram * int
   end
 
   class virtual t : object
-    method virtual listen : reuse_addr:bool -> reuse_port:bool -> backlog:int -> sw:Switch.t -> Sockaddr.t -> listening_socket
-    method virtual connect : sw:Switch.t -> Sockaddr.t -> <Flow.two_way; Flow.close>
+    method virtual listen : reuse_addr:bool -> reuse_port:bool -> backlog:int -> sw:Switch.t -> Sockaddr.stream -> listening_socket
+    method virtual connect : sw:Switch.t -> Sockaddr.stream -> <Flow.two_way; Flow.close>
+    method virtual datagram_socket : sw:Switch.t -> Sockaddr.datagram -> datagram_socket
   end
 
   (** {2 Out-bound Connections} *)
 
-  val connect : sw:Switch.t -> #t -> Sockaddr.t -> <Flow.two_way; Flow.close>
+  val connect : sw:Switch.t -> #t -> Sockaddr.stream -> <Flow.two_way; Flow.close>
   (** [connect ~sw t addr] is a new socket connected to remote address [addr].
 
       The new socket will be closed when [sw] finishes, unless closed manually first. *)
 
   (** {2 Incoming Connections} *)
 
-  val listen : ?reuse_addr:bool -> ?reuse_port:bool -> backlog:int -> sw:Switch.t -> #t -> Sockaddr.t -> listening_socket
+  val listen : ?reuse_addr:bool -> ?reuse_port:bool -> backlog:int -> sw:Switch.t -> #t -> Sockaddr.stream -> listening_socket
   (** [listen ~sw ~backlog t addr] is a new listening socket bound to local address [addr].
 
       The new socket will be closed when [sw] finishes, unless closed manually first.
@@ -940,7 +984,7 @@ module Net : sig
   val accept :
     sw:Switch.t ->
     #listening_socket ->
-    <Flow.two_way; Flow.close> * Sockaddr.t
+    <Flow.two_way; Flow.close> * Sockaddr.stream
   (** [accept ~sw socket] waits until a new connection is ready on [socket] and returns it.
 
       The new socket will be closed automatically when [sw] finishes, if not closed earlier.
@@ -950,14 +994,29 @@ module Net : sig
     sw:Switch.t ->
     #listening_socket ->
     on_error:(exn -> unit) ->
-    (sw:Switch.t -> <Flow.two_way; Flow.close> -> Sockaddr.t -> unit) ->
+    (sw:Switch.t -> <Flow.two_way; Flow.close> -> Sockaddr.stream -> unit) ->
     unit
-  (** [accept socket fn] accepts a connection and handles it in a new fibre.
+  (** [accept socket fn] accepts a connection and handles it in a new fiber.
 
-      After accepting a connection to [socket], it runs [fn ~sw flow client_addr] in a new fibre,
-      using {!Fibre.fork_on_accept}.
+      After accepting a connection to [socket], it runs [fn ~sw flow client_addr] in a new fiber,
+      using {!Fiber.fork_on_accept}.
 
       [flow] will be closed automatically when the sub-switch is finished, if not already closed by then. *)
+
+  (** {2 Datagram Sockets} *)
+
+  val datagram_socket : sw:Switch.t -> #t -> Sockaddr.datagram -> datagram_socket
+  (** [datagram_socket ~sw t addr] creates a new datagram socket that data can be sent to
+      and received from. The new socket will be closed when [sw] finishes. *)
+
+  val send : datagram_socket -> Sockaddr.datagram -> Cstruct.t -> unit
+  (** [send sock addr buf] sends the data in [buf] to the address [addr] using the 
+      the datagram socket [sock]. *)
+
+  val recv : datagram_socket -> Cstruct.t -> Sockaddr.datagram * int
+  (** [recv sock buf] receives data from the socket [sock] putting it in [buf]. The number of bytes received is 
+      returned along with the sender address and port. If the [buf] is too small then excess bytes may be discarded
+      depending on the type of the socket the message is received from. *)
 end
 
 (** Parallel computation across multiple CPU cores. *)
@@ -972,16 +1031,16 @@ module Domain_manager : sig
   val run : #t -> (unit -> 'a) -> 'a
   (** [run t f] runs [f ()] in a newly-created domain and returns the result.
 
-      Other fibres in the calling domain can run in parallel with the new domain.
+      Other fibers in the calling domain can run in parallel with the new domain.
 
       Warning: [f] must only access thread-safe values from the calling domain,
       but this is not enforced by the type system.
 
-      If the calling fibre is cancelled, this is propagated to the spawned domain. *)
+      If the calling fiber is cancelled, this is propagated to the spawned domain. *)
 
   val run_raw : #t -> (unit -> 'a) -> 'a
   (** [run_raw t f] is like {!run}, but does not run an event loop in the new domain,
-      and so cannot perform IO, fork fibres, etc. *)
+      and so cannot perform IO, fork fibers, etc. *)
 end
 
 (** Clocks, time, sleeping and timeouts. *)
@@ -1220,7 +1279,7 @@ val traceln :
     The message is printed with a newline, and is flushed automatically.
     [traceln] is intended for quick debugging rather than for production code.
 
-    Unlike most Eio operations, [traceln] will never switch to another fibre;
+    Unlike most Eio operations, [traceln] will never switch to another fiber;
     if the OS is not ready to accept the message then the whole domain waits.
 
     It is safe to call [traceln] from multiple domains at the same time.
@@ -1239,7 +1298,7 @@ module Exn : sig
   type with_bt = exn * Printexc.raw_backtrace
 
   exception Multiple of exn list
-  (** Raised if multiple fibres fail, to report all the exceptions. *)
+  (** Raised if multiple fibers fail, to report all the exceptions. *)
 
   val combine : with_bt -> with_bt -> with_bt
   (** [combine x y] returns a single exception and backtrace to use to represent two errors.
@@ -1257,31 +1316,81 @@ end
 
 (** API for use by the scheduler implementation. *)
 module Private : sig
-  (** Every fibre has an associated context. *)
-  module Fibre_context : sig
+  (** Every fiber has an associated context. *)
+  module Fiber_context : sig
     type t
 
     val make_root : unit -> t
     (** Make a new root context for a new domain. *)
 
     val make : cc:Cancel.t -> t
-    (** [make ~cc] is a new fibre context, initially attached to the given cancellation context. *)
+    (** [make ~cc] is a new fiber context, initially attached to the given cancellation context. *)
 
     val destroy : t -> unit
     (** [destroy t] removes [t] from its cancellation context. *)
 
     val tid : t -> Ctf.id
 
+    (** {2 Cancellation}
+
+        The {!Cancel} module describes the user's view of cancellation.
+
+        Internally, when the user calls a primitive operation that needs to block the fiber,
+        the [Suspend callback] effect is performed.
+        This suspends the fiber and calls [callback] from the scheduler's context,
+        passing it the suspended fiber's context.
+        If the operation can be cancelled,
+        the callback should use {!set_cancel_fn} to register a cancellation function.
+
+        There are two possible outcomes for the operation: it may complete normally,
+        or it may be cancelled.
+        If it is cancelled then the registered cancellation function is called.
+        This function will always be called from the fiber's own domain, but care must be taken
+        if the operation is being completed by another domain at the same time.
+
+        Consider the case of {!Stream.take}, which can be fulfilled by a {!Stream.add} from another domain.
+        We want to ensure that either the item is removed from the stream and returned to the waiting fiber,
+        or that the operation is cancelled and the item is not removed from the stream.
+
+        Therefore, cancelling and completing both attempt to clear the cancel function atomically,
+        so that only one can succeed. The case where [Stream.take] succeeds before cancellation:
+
+        + A fiber calls [Suspend] and is suspended.
+          The callback sets a cancel function and registers a waiter on the stream.
+        + When another domain has an item, it removes the cancel function (making the [take] uncancellable)
+          and begins resuming the fiber with the new item.
+        + If the taking fiber is cancelled after this, the cancellation will be ignored and the operation
+          will complete successfully. Future operations will fail immediately, however.
+
+        The case of cancellation winning the race:
+
+        + A fiber calls [Suspend] and is suspended.
+          The callback sets a cancel function and registers a waiter on the stream.
+        + The taking fiber is cancelled. Its cancellation function is called, which starts removing the waiter.
+        + If another domain tries to provide an item to the waiter as this is happening,
+          it will try to clear the cancel function and fail.
+          The item will be given to the next waiter instead.
+
+        Note that there is a mutex around the list of waiters, so the taking domain
+        can't finish removing the waiter and start another operation while the adding
+        domain is trying to resume it.
+        In future, we may want to make this lock-free by using a fresh atomic
+        to hold the cancel function for each operation.
+
+        Note: A fiber will only have a cancel function set while it is suspended. *)
+
     val cancellation_context : t -> Cancel.t
     (** [cancellation_context t] is [t]'s current cancellation context. *)
 
     val set_cancel_fn : t -> (exn -> unit) -> unit
-    (** [set_cancel_fn t fn] sets [fn] as the fibre's cancel function.
+    (** [set_cancel_fn t fn] sets [fn] as the fiber's cancel function.
+
         If the cancellation context is cancelled, the function is removed and called.
         When the operation completes, you must call {!clear_cancel_fn} to remove it. *)
 
     val clear_cancel_fn : t -> bool
     (** [clear_cancel_fn t] removes the function previously set with {!set_cancel_fn}, if any.
+
         Returns [true] if this call removed the function, or [false] if there wasn't one.
         This operation is atomic and thread-safe.
         An operation that completes in another domain must use this to indicate that the operation is
@@ -1294,34 +1403,34 @@ module Private : sig
     (** [get_error t] is [Cancel.get_error (cancellation_context t)] *)
   end
 
-  module Effects : sig
-    open Effect
+  (** Temporary hack for compatibility with ocaml.4.12+domains *)
+  module Effect = Effect
 
+  module Effects : sig
     type 'a enqueue = ('a, exn) result -> unit
     (** A function provided by the scheduler to reschedule a previously-suspended thread. *)
 
-    type _ eff +=
-      | Suspend : (Fibre_context.t -> 'a enqueue -> unit) -> 'a eff
-      (** [Suspend fn] is performed when a fibre must be suspended
+    type _ Effect.t +=
+      | Suspend : (Fiber_context.t -> 'a enqueue -> unit) -> 'a Effect.t
+      (** [Suspend fn] is performed when a fiber must be suspended
           (e.g. because it called {!Promise.await} on an unresolved promise).
-          The effect handler runs [fn fibre enqueue] in the scheduler context,
-          passing it the suspended fibre's context and a function to resume it.
+          The effect handler runs [fn fiber enqueue] in the scheduler context,
+          passing it the suspended fiber's context and a function to resume it.
           [fn] should arrange for [enqueue] to be called once the thread is ready to run again. *)
 
-      | Fork : Fibre_context.t * (unit -> unit) -> unit eff
-      (** See {!Fibre.fork} *)
+      | Fork : Fiber_context.t * (unit -> unit) -> unit Effect.t
+      (** [perform (Fork new_context f)] creates a new fiber and runs [f] in it, with context [new_context].
+          [f] must not raise an exception. See {!Fiber.fork}. *)
 
-      | Trace : (?__POS__:(string * int * int * int) -> ('a, Format.formatter, unit, unit) format4 -> 'a) eff
+      | Trace : (?__POS__:(string * int * int * int) -> ('a, Format.formatter, unit, unit) format4 -> 'a) Effect.t
       (** [perform Trace fmt] writes trace logging to the configured trace output.
-          It must not switch fibres, as tracing must not affect scheduling.
+          It must not switch fibers, as tracing must not affect scheduling.
           If the system is not ready to receive the trace output,
           the whole domain must block until it is. *)
 
-      | Get_context : Fibre_context.t eff
+      | Get_context : Fiber_context.t Effect.t
+      (** [perform Get_context] immediately returns the current fiber's context (without switching fibers). *)
   end
-
-  (** Temporary hack for compatibility with ocaml.4.12+domains *)
-  module Effect = Effect
 
   module Ctf = Ctf
 end

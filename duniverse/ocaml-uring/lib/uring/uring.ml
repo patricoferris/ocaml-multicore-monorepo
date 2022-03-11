@@ -130,6 +130,25 @@ module Iovec = struct
     (iovec, len, buffers)
 end
 
+(* Used for the sendmsg/recvmsg calls. Liburing doesn't support sendto/recvfrom at the time of writing. *)
+module Msghdr = struct
+  type msghdr
+  type t = msghdr * Sockaddr.t option * Iovec.t
+  external make_msghdr : int -> Unix.file_descr list -> Sockaddr.t option -> Iovec.t-> msghdr = "ocaml_uring_make_msghdr"
+  external get_msghdr_fds : msghdr -> Unix.file_descr list = "ocaml_uring_get_msghdr_fds"
+
+  let get_fds (hdr, _, _) = get_msghdr_fds hdr
+
+  (* Create a value with space for [n_fds] file descriptors.
+     When sending, [fds] is used to fill those slots. When receiving, they can be left blank. *)
+  let create_with_addr ~n_fds ~fds ?addr buffs =
+    let iovs = Iovec.make buffs in
+    make_msghdr n_fds fds addr iovs, addr, iovs
+
+  let create ?(n_fds=0) ?addr buffs =
+    create_with_addr ~n_fds ~fds:[] ?addr buffs
+end
+
 type 'a job = 'a Heap.entry
 
 module Uring = struct
@@ -157,6 +176,8 @@ module Uring = struct
   external submit_accept : t -> id -> Unix.file_descr -> Sockaddr.t -> bool = "ocaml_uring_submit_accept" [@@noalloc]
   external submit_cancel : t -> id -> id -> bool = "ocaml_uring_submit_cancel" [@@noalloc]
   external submit_openat2 : t -> id -> Unix.file_descr -> Open_how.t -> bool = "ocaml_uring_submit_openat2" [@@noalloc]
+  external submit_send_msg : t -> id -> Unix.file_descr -> Msghdr.t -> bool = "ocaml_uring_submit_send_msg" [@@noalloc]
+  external submit_recv_msg : t -> id -> Unix.file_descr -> Msghdr.t -> bool = "ocaml_uring_submit_recv_msg" [@@noalloc]
 
   type cqe_option = private
     | Cqe_none
@@ -214,16 +235,12 @@ let register_gc_root t =
 let unregister_gc_root t =
   update_gc_roots (Ring_set.remove (Generic_ring.T t))
 
-let default_iobuf_len = 1024 * 1024 (* 1MB *)
-
-let create ?(fixed_buf_len=default_iobuf_len) ?polling_timeout ~queue_depth () =
+let create ?polling_timeout ~queue_depth () =
   if queue_depth < 1 then Fmt.invalid_arg "Non-positive queue depth: %d" queue_depth;
   let uring = Uring.create queue_depth polling_timeout in
-  (* TODO posix memalign this to page *)
-  let fixed_iobuf = Bigarray.(Array1.create char c_layout fixed_buf_len) in
-  Uring.register_bigarray uring fixed_iobuf;
   let data = Heap.create queue_depth in
   let id = object end in
+  let fixed_iobuf = Cstruct.empty.buffer in
   let t = { id; uring; fixed_iobuf; data; dirty=false; queue_depth } in
   register_gc_root t;
   t
@@ -233,11 +250,16 @@ let ensure_idle t op =
   | 0 -> ()
   | n -> Fmt.invalid_arg "%s: %d request(s) still active!" op n
 
-let realloc t iobuf =
-  ensure_idle t "realloc";
-  Uring.unregister_buffers t.uring;
+let set_fixed_buffer t iobuf =
+  ensure_idle t "set_fixed_buffer";
+  if Bigarray.Array1.dim t.fixed_iobuf > 0 then
+    Uring.unregister_buffers t.uring;
   t.fixed_iobuf <- iobuf;
-  Uring.register_bigarray t.uring iobuf
+  if Bigarray.Array1.dim iobuf > 0 then (
+    match Uring.register_bigarray t.uring iobuf with
+    | () -> Ok ()
+    | exception Unix.Unix_error(Unix.ENOMEM, "io_uring_register_buffers", "") -> Error `ENOMEM
+  ) else Ok ()
 
 let exit t =
   ensure_idle t "exit";
@@ -314,6 +336,15 @@ let connect t fd addr user_data =
 
 let accept t fd addr user_data =
   with_id_full t (fun id -> Uring.submit_accept t.uring id fd addr) user_data ~extra_data:addr
+
+let send_msg ?(fds=[]) ?dst t fd buffers user_data =
+  let addr = Option.map Sockaddr.of_unix dst in
+  let n_fds = List.length fds in
+  let msghdr = Msghdr.create_with_addr ~n_fds ~fds ?addr buffers in
+  with_id_full t (fun id -> Uring.submit_send_msg t.uring id fd msghdr) user_data ~extra_data:msghdr
+
+let recv_msg t fd msghdr user_data =
+  with_id_full t (fun id -> Uring.submit_recv_msg t.uring id fd msghdr) user_data ~extra_data:msghdr
 
 let cancel t job user_data =
   ignore (Heap.ptr job : Uring.id);  (* Check it's still valid *)

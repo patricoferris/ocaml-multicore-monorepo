@@ -9,7 +9,7 @@ Multicore Monorepo!
 - : unit = ()
 ```
 
-Whilst OCaml 5.00.0+trunk stabilises, setting up an opam switch is tricky as there are quite a few deprecated functions causing lots of packages to not build.
+Whilst OCaml 5.0.0+trunk stabilises, setting up an opam switch is tricky as there are quite a few deprecated functions causing lots of packages to not build.
 
 If you are happy to use `dune` as your build tool, this repository vendors lots of packages so you can just run `dune build <target>`. It does this using [opam-monorepo][]. Some of the packages are "hot-fixed" just to get this repository off of the ground, so your mileage may vary. To get up and running, all you need to do is:
 
