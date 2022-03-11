@@ -1,3 +1,13 @@
+# dev (2022-??) - ??
+## Features/Changes
+* Misc: switch to cmdliner.1.1.0
+* Misc: remove old binaries jsoo_link, jsoo_fs
+* Misc: remove uchar dep
+
+## Bug fixes
+* Compiler: fix rewriter bug in share_constant (fix #1247)
+* Runtime: fix Out_channel.is_buffered, set_buffered
+
 # 4.0.0 (2021-01-24) - Lille
 ## Features/Changes
 * Compiler: add --target-env flag, for JS runtime specific compilation targets (#1160).

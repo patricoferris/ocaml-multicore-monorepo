@@ -5,7 +5,7 @@ let () =
          So, to avoid unnecessary AST migrations, we re-use the 414 AST for 500. *)
       let ocaml_version_str =
         match String.split_on_char '.' ocaml_version_str with
-        | "5" :: "00" :: _ -> "4.14.0"
+        | "5" :: ("00" | "0") :: _ -> "4.14.0"
         | _ -> ocaml_version_str
       in
       let ocaml_version =

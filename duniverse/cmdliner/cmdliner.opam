@@ -25,8 +25,9 @@ Cmdliner has no dependencies and is distributed under the ISC license.
 
 [1]: http://pubs.opengroup.org/onlinepubs/009695399/basedefs/xbd_chap12.html
 [2]: http://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html
-"""
+
+Home page: http://erratique.ch/software/cmdliner"""
 build: [[ "dune" "build" "-p" name ]]
 url {
-  src: "git://github.com/dune-universe/cmdliner.git#duniverse-v1.0.4"
+  src: "git://github.com/dune-universe/cmdliner.git#duniverse-v1.1.0"
 }

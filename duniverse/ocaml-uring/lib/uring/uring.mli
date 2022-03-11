@@ -25,30 +25,41 @@ type 'a job
 (** A handle for a submitted job, which can be used to cancel it.
     If an operation returns [None], this means that submission failed because the ring is full. *)
 
-val create : ?fixed_buf_len:int -> ?polling_timeout:int -> queue_depth:int -> unit -> 'a t
-(** [create ?fixed_buf_len ~queue_depth] will return a fresh Io_uring structure
-    [t]. Each [t] has associated with it a fixed region of memory that is used
-    for the "fixed buffer" mode of io_uring to avoid data copying between
-    userspace and the kernel.
+val create : ?polling_timeout:int -> queue_depth:int -> unit -> 'a t
+(** [create ~queue_depth] will return a fresh Io_uring structure [t].
+    Initially, [t] has no fixed buffer. Use {!set_fixed_buffer} if you want one.
     @param polling_timeout If given, use polling mode with the given idle timeout (in ms).
                            This requires privileges. *)
 
 val queue_depth : 'a t -> int
 (** [queue_depth t] returns the total number of submission slots for the uring [t] *)
 
-val buf : 'a t -> Cstruct.buffer
-(** [buf t] is the fixed internal memory buffer associated with uring [t].
-    You will normally want to wrap this with {!Region.alloc} or similar
-    to divide the buffer into chunks. *)
-
-val realloc : 'a t -> Cstruct.buffer -> unit
-(** [realloc t buf] will replace the internal fixed buffer associated with
-    uring [t] with a fresh one.
-    @raise Invalid_argument if there are any requests in progress *)
-
 val exit : 'a t -> unit
 (** [exit t] will shut down the uring [t]. Any subsequent requests will fail.
     @raise Invalid_argument if there are any requests in progress *)
+
+(** {2 Fixed buffers}
+
+    Each uring may have associated with it a fixed region of memory that is used
+    for the "fixed buffer" mode of io_uring to avoid data copying between
+    userspace and the kernel. *)
+
+val set_fixed_buffer : 'a t -> Cstruct.buffer -> (unit, [> `ENOMEM]) result
+(** [set_fixed_buffer t buf] sets [buf] as the fixed buffer for [t].
+
+    You will normally want to wrap this with {!Region.alloc} or similar
+    to divide the buffer into chunks.
+
+    If [t] already has a buffer set, the old one will be removed.
+
+    Returns [`ENOMEM] if insufficient kernel resources are available
+    or the caller's RLIMIT_MEMLOCK resource limit would be exceeded.
+
+    @raise Invalid_argument if there are any requests in progress *)
+
+val buf : 'a t -> Cstruct.buffer
+(** [buf t] is the fixed internal memory buffer associated with uring [t]
+    using {!set_fixed_buffer}, or a zero-length buffer if none is set. *)
 
 (** {2 Queueing operations} *)
 
@@ -198,6 +209,29 @@ val cancel : 'a t -> 'a job -> 'a -> 'a job option
     The cancel job itself returns 0 on success, or [ENOTFOUND]
     if [job] had already completed by the time the kernel processed the cancellation request.
     @raise Invalid_argument if the job has already been returned by e.g. {!wait}. *)
+
+module Msghdr : sig
+  type t
+
+  val create : ?n_fds:int -> ?addr:Sockaddr.t -> Cstruct.t list -> t
+  (** [create buffs] makes a new [msghdr] using the [buffs] 
+      for the underlying [iovec].
+      @param addr The remote address.
+                  Use {!Sockaddr.create} to create a dummy address that will be filled when data is received.
+      @param n_fds Reserve space to receive this many FDs (default 0) *)
+
+  val get_fds : t -> Unix.file_descr list
+end 
+
+val send_msg : ?fds:Unix.file_descr list -> ?dst:Unix.sockaddr -> 'a t -> Unix.file_descr -> Cstruct.t list -> 'a -> 'a job option
+(** [send_msg t fd buffs d] will submit a [sendmsg(2)] request. The [Msghdr] will be constructed
+    from the FDs ([fds]), address ([dst]) and buffers ([buffs]).
+    @param dst Destination address.
+    @param fds Extra file descriptors to attach to the message. *)
+
+val recv_msg : 'a t -> Unix.file_descr -> Msghdr.t -> 'a -> 'a job option
+(** [recv_msg t fd msghdr d] will submit a [recvmsg(2)] request. If the request is 
+    successful then the [msghdr] will contain the sender address and the data received. *)
 
 (** {2 Submitting operations} *)
 

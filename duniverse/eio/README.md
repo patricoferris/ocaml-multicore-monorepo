@@ -15,7 +15,7 @@ Eio replaces existing concurrency libraries such as Lwt
 * [Structure of the Code](#structure-of-the-code)
 * [Getting Started](#getting-started)
 * [Testing with Mocks](#testing-with-mocks)
-* [Fibres](#fibres)
+* [Fibers](#fibers)
 * [Tracing](#tracing)
 * [Cancellation](#cancellation)
 * [Racing](#racing)
@@ -23,7 +23,7 @@ Eio replaces existing concurrency libraries such as Lwt
 * [Design Note: Results vs Exceptions](#design-note-results-vs-exceptions)
 * [Performance](#performance)
 * [Networking](#networking)
-* [Design Note: Object Capabilities](#design-note-object-capabilities)
+* [Design Note: Capabilities](#design-note-capabilities)
 * [Buffering and Parsing](#buffering-and-parsing)
 * [Filesystem Access](#filesystem-access)
 * [Time](#time)
@@ -82,7 +82,7 @@ Platform support:
 
 Feature status:
 
-- Concurrency primitives: Fibres, cancellation, promises, streams and semaphores are all working.
+- Concurrency primitives: Fibers, cancellation, promises, streams and semaphores are all working.
 - Multicore support: Working.
 - Networking: Clients and servers using TCP and Unix domain sockets work. UDP not yet done.
 - File-systems: Can create files and directories, load, save, parse, etc. Most other operations missing.
@@ -92,11 +92,11 @@ See [Awesome Multicore OCaml][] for links to work migrating other projects to Ei
 
 ## Structure of the Code
 
-- `eio` provides concurrency primitives (promises, etc.) and a high-level, cross-platform OS API.
-- `eio_luv` provides a cross-platform backend for these APIs using [luv](https://github.com/aantron/luv) (libuv).
-- `eio_linux` provides a Linux io-uring backend for these APIs,
+- [Eio][] provides concurrency primitives (promises, etc.) and a high-level, cross-platform OS API.
+- [Eio_luv][] provides a cross-platform backend for these APIs using [luv](https://github.com/aantron/luv) (libuv).
+- [Eio_linux][] provides a Linux io-uring backend for these APIs,
   plus a low-level API that can be used directly (in non-portable code).
-- `eio_main` selects an appropriate backend (e.g. `eio_linux` or `eio_luv`), depending on your platform.
+- [Eio_main][] selects an appropriate backend (e.g. `eio_linux` or `eio_luv`), depending on your platform.
 
 ## Getting Started
 
@@ -121,7 +121,7 @@ opam install eio_main utop		# (for opam 2.1)
 
 Try out the examples interactively by running `utop` in the shell.
 
-First `require` the `eio_main` library. It's also convenient to open the `Eio.Std`
+First `require` the `eio_main` library. It's also convenient to open the [Eio.Std][]
 module, as follows. (The leftmost `#` shown below is the Utop prompt, so enter the text after the 
 prompt and return after each line.)
 
@@ -130,14 +130,14 @@ prompt and return after each line.)
 # open Eio.Std;;
 ```
 
-This function writes a greeting to `stdout`:
+This function writes a greeting to `stdout` using [Eio.Flow][]:
 
 ```ocaml
 let main ~stdout =
   Eio.Flow.copy_string "Hello, world!\n" stdout
 ```
 
-We use `Eio_main.run` to run the event loop and call `main` from there:
+We use [Eio_main.run][] to run the event loop and call `main` from there:
 
 ```ocaml
 # Eio_main.run @@ fun env ->
@@ -170,18 +170,18 @@ For example, instead of giving `main` the real standard output, we can have it w
 - : unit = ()
 ```
 
-`traceln` (`Eio.Std.traceln`) provides convenient printf-style debugging, without requiring you to plumb `stderr` through your code.
+[Eio.traceln][] provides convenient printf-style debugging, without requiring you to plumb `stderr` through your code.
 It uses the `Format` module, so you can use the extended formatting directives here too.
 
-## Fibres
+## Fibers
 
-Here's an example running two threads of execution (fibres) concurrently:
+Here's an example running two threads of execution concurrently using [Eio.Fiber][]:
 
 ```ocaml
 let main _env =
-  Fibre.both
-    (fun () -> for x = 1 to 3 do traceln "x = %d" x; Fibre.yield () done)
-    (fun () -> for y = 1 to 3 do traceln "y = %d" y; Fibre.yield () done);;
+  Fiber.both
+    (fun () -> for x = 1 to 3 do traceln "x = %d" x; Fiber.yield () done)
+    (fun () -> for y = 1 to 3 do traceln "y = %d" y; Fiber.yield () done);;
 ```
 
 ```ocaml
@@ -195,12 +195,12 @@ let main _env =
 - : unit = ()
 ```
 
-The two fibres run on a single core, so only one can be running at a time.
+The two fibers run on a single core, so only one can be running at a time.
 Calling an operation that performs an effect (such as `yield`) can switch to a different thread.
 
 ## Tracing
 
-The library can write traces in CTF format, showing when threads (fibres) are created, when they run, and how they interact.
+The library can write traces in CTF format, showing when threads (fibers) are created, when they run, and how they interact.
 We can run the previous code with tracing enabled (writing to a new `trace.ctf` file) like this:
 
 ```ocaml
@@ -229,13 +229,13 @@ Note that the output from `traceln` appears in the trace as well as on the conso
 
 ## Cancellation
 
-Every fibre has a cancellation context.
-If one of the `Fibre.both` fibres fails, the other is cancelled:
+Every fiber has a [cancellation context][Eio.Cancel].
+If one of the `Fiber.both` fibers fails, the other is cancelled:
 
 ```ocaml
 # Eio_main.run @@ fun _env ->
-  Fibre.both
-    (fun () -> for x = 1 to 3 do traceln "x = %d" x; Fibre.yield () done)
+  Fiber.both
+    (fun () -> for x = 1 to 3 do traceln "x = %d" x; Fiber.yield () done)
     (fun () -> failwith "Simulated error");;
 +x = 1
 Exception: Failure "Simulated error".
@@ -243,16 +243,16 @@ Exception: Failure "Simulated error".
 
 What happened here was:
 
-1. `Fibre.both` created a new cancellation context for the child fibres.
-2. The first fibre ran, printed `x = 1` and yielded.
-3. The second fibre raised an exception.
-4. `Fibre.both` caught the exception and cancelled the context.
+1. `Fiber.both` created a new cancellation context for the child fibers.
+2. The first fiber ran, printed `x = 1` and yielded.
+3. The second fiber raised an exception.
+4. `Fiber.both` caught the exception and cancelled the context.
 5. The first thread's `yield` raised a `Cancelled` exception there.
-6. Once both threads had finished, `Fibre.both` re-raised the original exception.
+6. Once both threads had finished, `Fiber.both` re-raised the original exception.
 
-There is a tree of cancellation contexts for each domain, and every fibre is in one context.
+There is a tree of cancellation contexts for each domain, and every fiber is in one context.
 When an exception is raised, it propagates towards the root until handled, cancelling the other branches as it goes.
-You should assume that any operation that can switch fibres can also raise a `Cancelled` exception if an uncaught exception
+You should assume that any operation that can switch fibers can also raise a `Cancelled` exception if an uncaught exception
 reaches one of its ancestor cancellation contexts.
 
 If you want to make an operation non-cancellable, wrap it with `Cancel.protect`
@@ -260,40 +260,40 @@ If you want to make an operation non-cancellable, wrap it with `Cancel.protect`
 
 ## Racing
 
-`Fibre.first` returns the result of the first fibre to finish, cancelling the other one:
+`Fiber.first` returns the result of the first fiber to finish, cancelling the other one:
 
 ```ocaml
 # Eio_main.run @@ fun _env ->
   let x =
-    Fibre.first
+    Fiber.first
       (fun () ->
-        traceln "first fibre delayed...";
-        Fibre.yield ();
+        traceln "first fiber delayed...";
+        Fiber.yield ();
         traceln "delay over";
         "a"
       )
       (fun () -> "b")
   in
   traceln "x = %S" x;;
-+first fibre delayed...
++first fiber delayed...
 +x = "b"
 - : unit = ()
 ```
 
 ## Switches
 
-A switch is used to group fibres together, so they can be waited on together.
+A [switch][Eio.Switch] is used to group fibers together, so they can be waited on together.
 This is a form of [structured concurrency][].
 For example:
 
 ```ocaml
 # Eio_main.run @@ fun _env ->
   Switch.run (fun sw ->
-    Fibre.fork ~sw
-      (fun () -> for i = 1 to 3 do traceln "i = %d" i; Fibre.yield () done);
+    Fiber.fork ~sw
+      (fun () -> for i = 1 to 3 do traceln "i = %d" i; Fiber.yield () done);
     traceln "First thread forked";
-    Fibre.fork ~sw
-      (fun () -> for j = 1 to 3 do traceln "j = %d" j; Fibre.yield () done);
+    Fiber.fork ~sw
+      (fun () -> for j = 1 to 3 do traceln "j = %d" j; Fiber.yield () done);
     traceln "Second thread forked; top-level code is finished"
   );
   traceln "Switch is finished";;
@@ -310,13 +310,13 @@ For example:
 ```
 
 `Switch.run fn` creates a new switch `sw` and runs `fn sw`.
-`fn` may spawn new fibres and attach them to the switch.
+`fn` may spawn new fibers and attach them to the switch.
 It may also attach other resources such as open file handles.
-`Switch.run` waits until `fn` and all other attached fibres have finished, and then
+`Switch.run` waits until `fn` and all other attached fibers have finished, and then
 releases any attached resources (e.g. closing all attached file handles).
 
 If you call a function without giving it access to a switch,
-then when the function returns you can be sure that any fibres it spawned have finished,
+then when the function returns you can be sure that any fibers it spawned have finished,
 and any files it opened have been closed.
 This works because Eio does not provide e.g. a way to open a file without attaching it to a switch.
 If a function doesn't have a switch and wants to open a file, it must use `Switch.run` to create one.
@@ -324,18 +324,18 @@ But then the function can't return until `Switch.run` does, at which point the f
 
 So, a `Switch.run` puts a bound on the lifetime of things created within it,
 leading to clearer code and avoiding resource leaks.
-The `Fibre.fork` call above creates a new fibre that continues running after `fork` returns,
+The `Fiber.fork` call above creates a new fiber that continues running after `fork` returns,
 so it needs to take a switch argument.
 
 Every switch also creates a new cancellation context.
-You can use `Switch.fail` to mark the switch as failed and cancel all fibres within it.
-The exception (or exceptions) passed to `fail` will be raised by `run` when the fibres have exited.
+You can use `Switch.fail` to mark the switch as failed and cancel all fibers within it.
+The exception (or exceptions) passed to `fail` will be raised by `run` when the fibers have exited.
 
-You can also use `Fibre.fork_sub` to create a child sub-switch.
+You can also use `Fiber.fork_sub` to create a child sub-switch.
 Turning off the parent switch will also turn off the child switch, but turning off the child doesn't disable the parent.
 
 For example, a web-server might use one switch for the whole server and then create one sub-switch for each incoming connection.
-This allows you to end all fibres handling a single connection by turning off that connection's switch,
+This allows you to end all fibers handling a single connection by turning off that connection's switch,
 or to exit the whole application using the top-level switch.
 
 ## Design Note: Results vs Exceptions
@@ -405,7 +405,7 @@ Note that not all cases are well-optimised yet, but the idea is for each backend
 
 ## Networking
 
-Eio provides a simple high-level API for networking.
+Eio provides a simple high-level API for [networking][Eio.Net].
 Here is a client that connects to address `addr` using network `net` and sends a message:
 
 ```ocaml
@@ -434,18 +434,18 @@ let run_server socket =
 
 Notes:
 
-- `accept_sub` handles the connection in a new fibre, with its own subswitch.
+- `accept_sub` handles the connection in a new fiber, with its own subswitch.
 - Normally, a server would call `accept_sub` in a loop to handle multiple connections.
 - When the child switch created by `accept_sub` finishes, `flow` is closed automatically.
 
-We can test them in a single process using `Fibre.both`:
+We can test them in a single process using `Fiber.both`:
 
 ```ocaml
 let main ~net ~addr =
   Switch.run @@ fun sw ->
   let server = Eio.Net.listen net ~sw ~reuse_addr:true ~backlog:5 addr in
   traceln "Server ready...";
-  Fibre.both
+  Fiber.both
     (fun () -> run_server server)
     (fun () -> run_client ~net ~addr)
 ```
@@ -463,9 +463,9 @@ let main ~net ~addr =
 - : unit = ()
 ```
 
-## Design Note: Object Capabilities
+## Design Note: Capabilities
 
-Eio follows the principles of the [Object-capability model][].
+Eio follows the principles of [capability-based security][].
 The key idea here is that the lambda calculus already contains a perfectly good security system:
 a function can only access things that are in its scope.
 If we can avoid breaking this model (for example, by adding global variables to our language)
@@ -492,7 +492,7 @@ In a capability-safe language, we don't have to read the entire code-base to fin
   we might want to check whether we granted other parties access to this port on our loopback network.
 
 - `run_client` does get `net`, so we do need to read that.
-  We could make that code easier to audit by passing it `(fun () -> Eio.Net.connect network addr)` instead of `net` .
+  We could make that code easier to audit by passing it `(fun () -> Eio.Net.connect net addr)` instead of `net` .
   Then we could see that `run_client` could only connect to our loopback address.
 
 Some key features required for a capability system are:
@@ -508,7 +508,7 @@ Some key features required for a capability system are:
    without first being introduced to each other by the main application code.
    
 4. APIs should make it easy to restrict access.
-   For example, having a "directory" object should allow access to that sub-tree of the file-system only.
+   For example, having a "directory" should allow access to that sub-tree of the file-system only.
    If the file-system abstraction provides a `get_parent` function then access to any directory is
    equivalent to access to everything.
 
@@ -522,7 +522,7 @@ See [Emily][] for a previous attempt at this.
 Reading from an Eio flow directly may give you more or less data than you wanted.
 For example, if you want to read a line of text from a TCP stream,
 the flow will tend to give you the data in packet-sized chunks, not lines.
-To solve this, you can wrap the flow with a buffer and read from that.
+To solve this, you can wrap the flow with a [buffer][Eio.Buf_read] and read from that.
 
 Here's a simple command-line interface that reads `stdin` one line at a time:
 
@@ -597,7 +597,7 @@ let message =
 
 ## Filesystem Access
 
-Access to the filesystem is controlled by capabilities, and `env` provides two:
+Access to the [filesystem][Eio.Dir] is controlled by capabilities, and `env` provides two:
 
 - `fs` provides full access (just like OCaml's stdlib).
 - `cwd` restricts access to files beneath the current working directory.
@@ -698,7 +698,7 @@ so be careful if symlinks out of the subtree may be created while the program is
 
 ## Time
 
-The standard environment provides a clock with the usual POSIX time:
+The standard environment provides a [clock][Eio.Time] with the usual POSIX time:
 
 ```ocaml
 # Eio_main.run @@ fun env ->
@@ -716,7 +716,7 @@ In fact, this README does just that! See [doc/prelude.ml](doc/prelude.ml) for th
 
 ## Multicore Support
 
-Fibres are scheduled cooperatively within a single domain, but you can also create new domains that run in parallel.
+Fibers are scheduled cooperatively within a single domain, but you can also create new domains that run in parallel.
 This is useful to perform CPU-intensive operations quickly.
 For example, let's say we have a CPU intensive task:
 
@@ -731,7 +731,7 @@ let sum_to n =
   !total
 ```
 
-We can use `Eio.Domain_manager` to run this in a separate domain:
+We can use [Eio.Domain_manager][] to run this in a separate domain:
 
 ```ocaml
 let main ~domain_mgr =
@@ -740,7 +740,7 @@ let main ~domain_mgr =
       (Eio.Domain_manager.run domain_mgr
         (fun () -> sum_to n))
   in
-  Fibre.both
+  Fiber.both
     (fun () -> test 100000)
     (fun () -> test 50000)
 ```
@@ -766,25 +766,25 @@ Notes:
   because the OS is free to schedule domains as it likes.
 - You must ensure that the function passed to `run` doesn't have access to any non-threadsafe values.
   The type system does not check this.
-- `run` waits for the domain to finish, but it allows other fibres to run while waiting.
-  This is why we use `Fibre.both` to create multiple fibres.
+- `run` waits for the domain to finish, but it allows other fibers to run while waiting.
+  This is why we use `Fiber.both` to create multiple fibers.
 
 For more information, see the [Multicore Guide](./doc/multicore.md).
 
 ## Synchronisation Tools
 
-Eio provides several sub-modules for communicating between fibres,
-and these work even when the fibres are running in different domains.
+Eio provides several sub-modules for communicating between fibers,
+and these work even when the fibers are running in different domains.
 
 ### Promises
 
-Promises are a simple and reliable way to communicate between fibres.
-One fibre can wait for a promise and another can resolve it:
+[Promises][Eio.Promise] are a simple and reliable way to communicate between fibers.
+One fiber can wait for a promise and another can resolve it:
 
 ```ocaml
 # Eio_main.run @@ fun _ ->
   let promise, resolver = Promise.create () in
-  Fibre.both
+  Fiber.both
     (fun () ->
       traceln "Waiting for promise...";
       let x = Promise.await promise in
@@ -805,7 +805,7 @@ Awaiting a promise that is already resolved immediately returns the resolved val
 
 Promises are one of the easiest tools to use safely:
 it doesn't matter whether you wait on a promise before or after it is resolved,
-and multiple fibres can wait for the same promise and will get the same result.
+and multiple fibers can wait for the same promise and will get the same result.
 Promises are thread-safe; you can wait for a promise in one domain and resolve it in another.
 
 Promises are also useful for integrating with callback-based libraries. For example:
@@ -834,7 +834,7 @@ let make_cache ~sw fn =
     | None ->
       let p, r = Promise.create () in
       Hashtbl.add tbl key p;
-      Fibre.fork ~sw (fun () ->
+      Fiber.fork ~sw (fun () ->
         match fn key with
         | v -> Promise.resolve_ok r v
         | exception ex -> Promise.resolve_error r ex
@@ -843,7 +843,7 @@ let make_cache ~sw fn =
 ```
 
 Notice that we store the new promise in the cache immediately,
-without doing anything that might switch to another fibre.
+without doing anything that might switch to another fiber.
 
 The reason for the `fork` here is to run the fetch inside the cache's switch `sw`.
 Then if the caller is cancelled it will only cancel the `Promise.await`, not the fetch
@@ -854,7 +854,7 @@ We can use it like this:
 ```ocaml
 # let fetch url =
     traceln "Fetching %S..." url;
-    Fibre.yield ();             (* Simulate work... *)
+    Fiber.yield ();             (* Simulate work... *)
     if url = "http://example.com" then "<h1>Example.com</h1>"
     else failwith "404 Not Found";;
 val fetch : string -> string = <fun>
@@ -863,7 +863,7 @@ val fetch : string -> string = <fun>
   Switch.run @@ fun sw ->
   let c = make_cache ~sw fetch in
   let test url =
-    Fibre.fork ~sw (fun () ->
+    Fiber.fork ~sw (fun () ->
        match c url with
        | page -> traceln "%s -> %s" url page
        | exception ex -> traceln "%s -> %a" url Fmt.exn ex
@@ -894,13 +894,13 @@ You will need to add a mutex if you want to share it between domains.
 
 ### Streams
 
-A stream is a bounded queue. Reading from an empty stream waits until an item is available.
+A [stream][Eio.Stream] is a bounded queue. Reading from an empty stream waits until an item is available.
 Writing to a full stream waits for space.
 
 ```ocaml
 # Eio_main.run @@ fun _ ->
   let stream = Eio.Stream.create 2 in
-  Fibre.both
+  Fiber.both
     (fun () ->
        for i = 1 to 5 do
          traceln "Adding %d..." i;
@@ -911,7 +911,7 @@ Writing to a full stream waits for space.
        for i = 1 to 5 do
          let x = Eio.Stream.take stream in
          traceln "Got %d" x;
-         Fibre.yield ()
+         Fiber.yield ()
        done
     );;
 +Adding 1...
@@ -928,7 +928,7 @@ Writing to a full stream waits for space.
 ```
 
 Here, we create a stream with a maximum size of 2 items.
-The first fibre added 1 and 2 to the stream, but had to wait before it could insert 3.
+The first fiber added 1 and 2 to the stream, but had to wait before it could insert 3.
 
 A stream with a capacity of 1 acts like a mailbox.
 A stream with a capacity of 0 will wait until both the sender and receiver are ready.
@@ -938,11 +938,11 @@ Streams are thread-safe and can be used to communicate between domains.
 ### Example: Worker Pool
 
 A useful pattern is a pool of workers reading from a stream of work items.
-Client fibres submit items to a stream and workers process the items:
+Client fibers submit items to a stream and workers process the items:
 
 ```ocaml
 let handle_job request =
-  Fibre.yield ();       (* (simulated work) *)
+  Fiber.yield ();       (* (simulated work) *)
   Printf.sprintf "Processed:%d" request
 
 let run_worker id stream =
@@ -967,7 +967,7 @@ Each item in the stream is a request payload and a resolver for the reply promis
   Switch.run @@ fun sw ->
   let stream = Eio.Stream.create 100 in
   let spawn_worker name =
-    Fibre.fork ~sw (fun () ->
+    Fiber.fork ~sw (fun () ->
        Eio.Domain_manager.run domain_mgr (fun () -> run_worker name stream)
     )
   in
@@ -975,11 +975,11 @@ Each item in the stream is a request payload and a resolver for the reply promis
   spawn_worker "B";
   Switch.run (fun sw ->
      for i = 1 to 3 do
-       Fibre.fork ~sw (fun () ->
+       Fiber.fork ~sw (fun () ->
          traceln "Client %d submitting job..." i;
          traceln "Client %d got %s" i (submit stream i)
        );
-       Fibre.yield ()
+       Fiber.yield ()
      done;
   );
   raise Exit;;
@@ -1008,26 +1008,26 @@ let run_worker id stream =
     traceln "Worker %s processing request %d" id request;
     match handle_job request with
     | result -> Promise.resolve_ok reply result
-    | exception ex -> Promise.resolve_error reply ex; Fibre.check ()
+    | exception ex -> Promise.resolve_error reply ex; Fiber.check ()
   done
 ```
 
-The `Fibre.check ()` checks whether the worker itself has been cancelled, and exits the loop if so.
+The `Fiber.check ()` checks whether the worker itself has been cancelled, and exits the loop if so.
 It's not actually necessary in this case,
 because if we continue instead then the following `Stream.take` will perform the check anyway.
 
 ## Design Note: Determinism
 
-Within a domain, fibres are scheduled deterministically.
+Within a domain, fibers are scheduled deterministically.
 Programs using only the Eio APIs can only behave non-deterministically if given a capability to do so from somewhere else.
 
-For example, `Fibre.both f g` always starts running `f` first,
-and only switches to `g` when `f` finishes or performs an effect that can switch fibres.
+For example, `Fiber.both f g` always starts running `f` first,
+and only switches to `g` when `f` finishes or performs an effect that can switch fibers.
 
 Performing IO with external objects (e.g., `stdout`, files, or network sockets) will introduce non-determinism,
 as will using multiple domains.
 
-Note that `traceln` is unusual. Although it writes (by default) to stderr, it will not switch fibres.
+Note that `traceln` is unusual. Although it writes (by default) to stderr, it will not switch fibers.
 Instead, if the OS is not ready to receive trace output, the whole domain is paused until it is ready.
 This means that adding `traceln` to deterministic code will not affect its scheduling.
 
@@ -1089,6 +1089,8 @@ Here, the compiler already has the type from the `Eio_main.run` call immediately
 and `env` is acting as a simple record.
 We avoid doing that in this guide only to avoid alarming OCaml users unfamiliar with object syntax.
 
+See [Dynamic Dispatch](doc/rationale.md#dynamic-dispatch) for more discussion about the use of objects here.
+
 ## Example Applications
 
 - [gemini-eio][] is a simple Gemini browser. It shows how to integrate Eio with `ocaml-tls`, `angstrom`, and `notty`.
@@ -1097,7 +1099,7 @@ We avoid doing that in this guide only to avoid alarming OCaml users unfamiliar 
 
 ## Porting from Lwt
 
-You can use [Lwt_eio][] to run Lwt threads and Eio fibres together in a single domain,
+You can use [Lwt_eio][] to run Lwt threads and Eio fibers together in a single domain,
 and to convert between Lwt and Eio promises.
 This may be useful during the process of porting existing code to Eio.
 
@@ -1105,6 +1107,7 @@ This may be useful during the process of porting existing code to Eio.
 
 - [lib_eio/eio.mli](lib_eio/eio.mli) documents Eio's public API.
 - [doc/rationale.md](doc/rationale.md) describes some of Eio's design tradeoffs in more detail.
+- [doc/eio_null.md](doc/eio_null.md) is a skeleton Eio backend with no actual IO.
 
 Some background about the effects system can be found in:
 
@@ -1119,8 +1122,26 @@ Some background about the effects system can be found in:
 [mirage-trace-viewer]: https://github.com/talex5/mirage-trace-viewer
 [structured concurrency]: https://en.wikipedia.org/wiki/Structured_concurrency
 [typed effects]: https://www.janestreet.com/tech-talks/effective-programming/
-[Object-capability model]: https://en.wikipedia.org/wiki/Object-capability_model
+[capability-based security]: https://en.wikipedia.org/wiki/Object-capability_model
 [Emily]: https://www.hpl.hp.com/techreports/2006/HPL-2006-116.pdf
 [http-bench]: https://github.com/ocaml-multicore/retro-httpaf-bench
 [gemini-eio]: https://gitlab.com/talex5/gemini-eio
 [Awesome Multicore OCaml]: https://github.com/patricoferris/awesome-multicore-ocaml
+[Eio]: https://ocaml-multicore.github.io/eio/eio/Eio/index.html
+[Eio.Std]: https://ocaml-multicore.github.io/eio/eio/Eio/Std/index.html
+[Eio.Fiber]: https://ocaml-multicore.github.io/eio/eio/Eio/Fiber/index.html
+[Eio.Flow]: https://ocaml-multicore.github.io/eio/eio/Eio/Flow/index.html
+[Eio.Cancel]: https://ocaml-multicore.github.io/eio/eio/Eio/Cancel/index.html
+[Eio.Switch]: https://ocaml-multicore.github.io/eio/eio/Eio/Switch/index.html
+[Eio.Net]: https://ocaml-multicore.github.io/eio/eio/Eio/Net/index.html
+[Eio.Buf_read]: https://ocaml-multicore.github.io/eio/eio/Eio/Buf_read/index.html
+[Eio.Dir]: https://ocaml-multicore.github.io/eio/eio/Eio/Dir/index.html
+[Eio.Time]: https://ocaml-multicore.github.io/eio/eio/Eio/Time/index.html
+[Eio.Domain_manager]: https://ocaml-multicore.github.io/eio/eio/Eio/Domain_manager/index.html
+[Eio.Promise]: https://ocaml-multicore.github.io/eio/eio/Eio/Promise/index.html
+[Eio.Stream]: https://ocaml-multicore.github.io/eio/eio/Eio/Stream/index.html
+[Eio_luv]: https://ocaml-multicore.github.io/eio/eio_luv/Eio_luv/index.html
+[Eio_linux]: https://ocaml-multicore.github.io/eio/eio_linux/Eio_linux/index.html
+[Eio_main]: https://ocaml-multicore.github.io/eio/eio_main/Eio_main/index.html
+[Eio.traceln]: https://ocaml-multicore.github.io/eio/eio/Eio/index.html#val-traceln
+[Eio_main.run]: https://ocaml-multicore.github.io/eio/eio_main/Eio_main/index.html#val-run

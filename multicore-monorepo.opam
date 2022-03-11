@@ -7,9 +7,9 @@ bug-reports: "https://github.com/patricoferris/ocaml-multicore-monorepo/issues"
 depends: [
   "ocaml-variants" {= "5.00.0+trunk" }
   "dune" {>= "2.9.2"}
-  "eio_main" {>= "0.1"}
+  "eio_main" {>= "0.2"}
   "lwt_eio"
-  "domainslib"
+  "domainslib" {>= "0.4.2"}
   "mdx"
   "base"
   "multipart_form"
@@ -45,7 +45,6 @@ pin-depends: [
     "notty.dev" "git+https://github.com/patricoferris/notty#30ceb680991557fd1d190dfbd733145220cc165d"
     "lwt.dev" "git+https://github.com/ocsigen/lwt#eb4874857e871346a5f1854591d731699bbdc749"
     "base.dev" "git+https://github.com/kit-ty-kate/base#a3cf0042e943c9c979ff7424912c71c6236f68f3"
-    "ppxlib.dev" "git+https://github.com/pitag-ha/ppxlib#31621eedacfa412ad59572d0d09a4d1b86553b3a"
     "easy-format.dev" "git+https://github.com/nojb/easy-format#4568bfa1887146ab6ce41a48c9e00c8c1329c6e4"
     "menhir.dev" "git+https://gitlab.inria.fr/fpottier/menhir#cea506b862ddc34fb6a25b60ae145b755a0db737"
     "menhirLib.dev" "git+https://gitlab.inria.fr/fpottier/menhir#cea506b862ddc34fb6a25b60ae145b755a0db737"
@@ -63,10 +62,10 @@ pin-depends: [
     # Luv doesn't like to be vendored it would seem :/
     "luv.dev" "git+https://github.com/patricoferris/luv#df19e79c935fb5d2ec205e097c8843fedd8712fb"
     # Note these jsoo packages do not support effects, just compiling under a 5.00.0+trunk branch!
-    "js_of_ocaml-compiler.dev" "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
-    "js_of_ocaml-lwt.dev" "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
-    "js_of_ocaml-ppx.dev" "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
-    "js_of_ocaml.dev" "git+https://github.com/patricoferris/js_of_ocaml#61b19d5be901f7903bb56dafa12caf041038770a"
+    "js_of_ocaml-compiler.dev" "git+https://github.com/patricoferris/js_of_ocaml#fd1c3c1e5d5e0021a17be60a2fc60f80dfe783d6"
+    "js_of_ocaml-lwt.dev" "git+https://github.com/patricoferris/js_of_ocaml#fd1c3c1e5d5e0021a17be60a2fc60f80dfe783d6"
+    "js_of_ocaml-ppx.dev" "git+https://github.com/patricoferris/js_of_ocaml#fd1c3c1e5d5e0021a17be60a2fc60f80dfe783d6"
+    "js_of_ocaml.dev" "git+https://github.com/patricoferris/js_of_ocaml#fd1c3c1e5d5e0021a17be60a2fc60f80dfe783d6"
     # For monorepo-ing -- bigarray-compat
     "opam-core.2.1.0" "git+https://github.com/patricoferris/opam#4534c7083e6f6cbe80ac5792b7c3931363b5454b"
 ]

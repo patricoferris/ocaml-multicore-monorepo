@@ -1,6 +1,6 @@
 (lang dune 2.9)
 (name eio)
-(version v0.1)
+(version v0.2)
 (formatting disabled)
 (generate_opam_files true)
 (source (github ocaml-multicore/eio))
@@ -11,7 +11,7 @@
 (package
  (name eio)
  (synopsis "Effect-based direct-style IO API for OCaml")
- (description "An effect-based IO API for multicore OCaml with fibres.")
+ (description "An effect-based IO API for multicore OCaml with fibers.")
  (depends
   (ocaml (>= 4.12.0))
   base-domains
@@ -35,7 +35,7 @@
   (mdx (and (>= 1.10.0) :with-test))
   (logs (>= 0.7.0))
   (fmt (>= 0.8.9))
-  (uring (>= 0.2))))
+  (uring (>= 0.3))))
 (package
  (name eio_luv)
  (synopsis "Eio implementation using luv (libuv)")

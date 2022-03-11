@@ -123,8 +123,8 @@ let test_invalid_queue_depth () =
   check_raises ~__POS__ (Invalid_argument "Non-positive queue depth: 0")
     (fun () -> ignore (Uring.create ~queue_depth:0 ()))
 
-let with_uring ?(fixed_buf_len=1024) ~queue_depth fn =
-  let t = Uring.create ~fixed_buf_len ~queue_depth () in
+let with_uring ~queue_depth fn =
+  let t = Uring.create ~queue_depth () in
   fn t;
   Uring.exit t  (* Only free if there wasn't an error *)
 
@@ -210,10 +210,16 @@ let test_resolve () =
   check_bool ~__POS__ ~expected:true @@ get ~resolve:Uring.Resolve.empty "..";
   check_bool ~__POS__ ~expected:false @@ get ~resolve:Uring.Resolve.beneath ".."
 
+let set_fixed_buffer t size =
+  let fbuf = Bigarray.(Array1.create char c_layout size) in
+  match Uring.set_fixed_buffer t fbuf with
+  | Ok () -> fbuf
+  | Error `ENOMEM -> failwith "Resource limit exceeded"
+
 let test_read () =
   with_uring ~queue_depth:1 @@ fun t ->
+  let fbuf = set_fixed_buffer t 1024 in
   Test_data.with_fd @@ fun fd ->
-
   let off = 3 in
   let len = 5 in
   let file_offset = Int63.of_int 2 in
@@ -224,7 +230,6 @@ let test_read () =
   assert_   ~__POS__ (token = `Read);
   check_int ~__POS__ read ~expected:len;
 
-  let fbuf = Uring.buf t in
   let got = Cstruct.of_bigarray fbuf ~off ~len in
   check_string ~__POS__  ~expected:"test " (Cstruct.to_string got)
 
@@ -261,9 +266,10 @@ let test_readv2 () =
   check_string ~__POS__ ~expected:"Gathered [A te] and [st ]" (Cstruct.to_string b)
 
 let test_region () =
-  with_uring ~queue_depth:1 ~fixed_buf_len:64 @@ fun t ->
+  with_uring ~queue_depth:1 @@ fun t ->
+  let fbuf = set_fixed_buffer t 64 in
   Test_data.with_fd @@ fun fd ->
-  let region = Uring.Region.init (Uring.buf t) 4 ~block_size:16 in
+  let region = Uring.Region.init fbuf 4 ~block_size:16 in
   let chunk = Uring.Region.alloc region in
   assert_some ~__POS__ (Uring.read_chunk t fd chunk `Read ~file_offset:Int63.zero);
   let token, read = consume t in
@@ -283,6 +289,7 @@ let test_region () =
 (* Ask to read from a pipe (with no data available), then cancel it. *)
 let test_cancel () =
   with_uring ~queue_depth:5 @@ fun t ->
+  let _fbuf = set_fixed_buffer t 1024 in
   (* while true do *)
   let r, w = Unix.pipe () in
   let read = Uring.read_fixed t ~file_offset:Int63.zero r ~off:0 ~len:1 `Read |> Option.get in
@@ -313,6 +320,7 @@ let test_cancel () =
 (* By the time we cancel, the request has already succeeded (we just didn't process the reply yet). *)
 let test_cancel_late () =
   with_uring ~queue_depth:5 @@ fun t ->
+  let _fbuf = set_fixed_buffer t 1024 in
   let r = Unix.openfile "/dev/zero" Unix.[O_RDONLY] 0 in
   let read = Uring.read_fixed t ~file_offset:Int63.zero r ~off:0 ~len:1 `Read |> Option.get in
   check_int   ~__POS__ (Uring.submit t) ~expected:1;
@@ -333,13 +341,14 @@ let test_cancel_late () =
   ) else (
     (* This isn't the case we want to test, but it can happen sometimes. *)
     check_int ~__POS__ ~expected:(-125) r_read; (* ECANCELED *)
-    check_int ~__POS__ ~expected:1 r_cancel;    (* Success *)
+    check_int ~__POS__ ~expected:0 r_cancel;    (* Success *)
   );
   Unix.close r
 
 (* By the time we cancel, we already knew the operation was over. *)
 let test_cancel_invalid () =
   with_uring ~queue_depth:5 @@ fun t ->
+  let _fbuf = set_fixed_buffer t 1024 in
   let r = Unix.openfile "/dev/zero" Unix.[O_RDONLY] 0 in
   let read = Uring.read_fixed t ~file_offset:Int63.zero r ~off:0 ~len:1 `Read |> Option.get in
   let token, r_read = consume t in
@@ -353,6 +362,7 @@ let test_cancel_invalid () =
 
 let test_free_busy () =
   let t = Uring.create ~queue_depth:1 () in
+  let _fbuf = set_fixed_buffer t 1024 in
   let r, w = Unix.pipe () in
   Fun.protect ~finally:(fun () -> Unix.close r) @@ fun () ->
   assert_some ~__POS__ (Uring.read_fixed t ~file_offset:Int63.minus_one r ~off:0 ~len:1 `Read);
@@ -365,6 +375,34 @@ let test_free_busy () =
   assert_   ~__POS__ (token = `Read);
   check_int ~__POS__ ~expected:0    r_read;
   Uring.exit t
+
+let test_send_msg () =
+  let r, w = Unix.pipe () in
+  let t = Uring.create ~queue_depth:2 () in
+  let a, b = Unix.(socketpair PF_UNIX SOCK_STREAM 0) in
+  let bufs = [Cstruct.of_string "hi"] in
+  assert_some ~__POS__ (Uring.send_msg t a ~fds:[r; w] bufs `Send);
+  check_int   ~__POS__ (Uring.submit t) ~expected:1;
+  let _, r_send = consume t in
+  check_int ~__POS__ ~expected:2 r_send;
+  let recv_buf = Cstruct.of_string "XX" in
+  let recv = Uring.Msghdr.create ~n_fds:2 [recv_buf] in
+  check_int ~__POS__ ~expected:0 (List.length (Uring.Msghdr.get_fds recv));
+  assert_some ~__POS__ (Uring.recv_msg t b recv `Recv);
+  check_int   ~__POS__ (Uring.submit t) ~expected:1;
+  let _, r_recv = consume t in
+  check_int ~__POS__ ~expected:2 r_recv;
+  check_string ~__POS__ ~expected:"hi" (Cstruct.to_string recv_buf);
+  let r2, w2 =
+    match Uring.Msghdr.get_fds recv with
+    | [r2; w2] -> r2, w2
+    | _ -> failwith "Expected two FDs!"
+  in
+  check_int ~__POS__ ~expected:5 (Unix.write_substring w2 "to-w2" 0 5);
+  check_string ~__POS__ ~expected:"to-w2" (really_input_string (Unix.in_channel_of_descr r) 5);
+  check_int ~__POS__ ~expected:4 (Unix.write_substring w "to-w" 0 4);
+  check_string ~__POS__ ~expected:"to-w" (really_input_string (Unix.in_channel_of_descr r2) 4);
+  List.iter Unix.close [r; w; r2; w2]
 
 let () =
   Test_data.setup ();
@@ -389,6 +427,7 @@ let () =
       tc "cancel" test_cancel;
       tc "cancel_late" test_cancel_late;
       tc "cancel_invalid" test_cancel_invalid;
+      tc "send_msg" test_send_msg;
       tc "free_busy" test_free_busy;
     ];
   ]
