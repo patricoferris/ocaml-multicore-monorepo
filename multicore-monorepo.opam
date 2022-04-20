@@ -5,7 +5,7 @@ authors: ["patrick@sirref.org"]
 homepage: "https://github.com/patricoferris/ocaml-multicore-monorepo"
 bug-reports: "https://github.com/patricoferris/ocaml-multicore-monorepo/issues"
 depends: [
-  "ocaml-variants" {= "5.00.0+trunk" }
+  "ocaml-variants" {= "5.0.0+trunk" }
   "dune" {>= "2.9.2"}
   "eio_main" {>= "0.2"}
   "lwt_eio"
